@@ -211,6 +211,8 @@ enum UserSelectablePins {
   GPIO_LOX_O2_RX,                       // LOX-O2 RX
   GPIO_GM861_TX, GPIO_GM861_RX,         // GM861 Serial interface
   GPIO_DINGTIAN_OE,                     // New version of Dingtian relay board where PL is not shared with OE
+  GPIO_DDSU666_LISTEN_RX,               // DDSU666 Serial interface listen mode
+  GPIO_BURST_CONTROL_PWM,               // BURST CONTROL PWM Pin
   GPIO_SENSOR_END };
 
 // Error as warning to rethink GPIO usage with max 2045
@@ -469,6 +471,8 @@ const char kSensorNames[] PROGMEM =
   D_SENSOR_LOX_O2_RX "|"
   D_SENSOR_GM861_TX "|" D_SENSOR_GM861_RX "|"
   D_GPIO_DINGTIAN_OE "|"
+  D_SENSOR_DDSU666_LISTEN_RX "|"
+  D_SENSOR_BURST_CONTROL_PWM "|"
   ;
 
 const char kSensorNamesFixed[] PROGMEM =
@@ -888,6 +892,12 @@ const uint16_t kGpioNiceList[] PROGMEM = {
   AGPIO(GPIO_DDSU666_TX),               // DDSU666 Serial interface
   AGPIO(GPIO_DDSU666_RX),               // DDSU666 Serial interface
 #endif  // USE_DDSU666
+#ifdef USE_DDSU666_LISTEN  
+  AGPIO(GPIO_DDSU666_LISTEN_RX),        // DDSU666 Serial interface
+#endif  // USE_DDSU666
+#ifdef USE_BURST_CONTROL
+  AGPIO(GPIO_BURST_CONTROL_PWM),        // BURST CONTROL PWM Pin
+#endif  // USE_BURST_CONTROL
 #ifdef USE_SOLAX_X1
   AGPIO(GPIO_SOLAXX1_TX),               // Solax Inverter tx pin
   AGPIO(GPIO_SOLAXX1_RX),               // Solax Inverter rx pin

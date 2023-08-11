@@ -191,6 +191,7 @@ typedef struct {
   bool kWhtoday_offset_init;
   bool voltage_available;                       // Enable if voltage is measured
   bool current_available;                       // Enable if current is measured
+  bool energy_available;                        // Enable if energy is measured
   bool local_energy_active_export;              // Enable if support for storing energy_active
   bool type_dc;
   bool power_on;
@@ -274,7 +275,7 @@ bool EnergyRtcSettingsValid(void) {
  * Driver Settings load and save using filesystem
 \*********************************************************************************************/
 
-const uint16_t XDRV_03_VERSION = 0x0102;              // Latest driver version (See settings deltas below)
+const uint32_t XDRV_03_VERSION = 0x0102;              // Latest driver version (See settings deltas below)
 
 void EnergySettingsLoad(bool erase) {
   // *** Start init default values in case file is not found ***
@@ -346,7 +347,7 @@ void EnergySettingsLoad(bool erase) {
   }
   else {
     // File system not ready: No flash space reserved for file system
-    AddLog(LOG_LEVEL_DEBUG, PSTR("CFG: Energy use defaults as file system not ready or file not found"));
+    AddLog(LOG_LEVEL_INFO, PSTR("CFG: Energy use defaults as file system not ready or file not found"));
   }
 #endif  // USE_UFILESYS
 }
@@ -370,12 +371,6 @@ void EnergySettingsSave(void) {
     }
   }
 #endif  // USE_UFILESYS
-}
-
-bool EnergySettingsRestore(void) {
-  XdrvMailbox.data = (char*)&Energy->Settings;
-  XdrvMailbox.index = sizeof(tEnergySettings);
-  return true;
 }
 
 /********************************************************************************************/
@@ -1391,6 +1386,7 @@ void EnergyDrvInit(void) {
   Energy->phase_count = 1;              // Number of phases active
   Energy->voltage_available = true;     // Enable if voltage is measured
   Energy->current_available = true;     // Enable if current is measured
+  Energy->energy_available = true;      // Enable if energy is measured
   Energy->power_on = true;
 
   TasmotaGlobal.energy_driver = ENERGY_NONE;
@@ -1712,9 +1708,11 @@ void EnergyShow(bool json) {
           WSContentSend_PD(HTTP_SNS_POWER_FACTOR, WebEnergyFmt(power_factor, 2));
         }
       }
-      WSContentSend_PD(HTTP_SNS_ENERGY_TODAY, WebEnergyFmt(Energy->daily_kWh, Settings->flag2.energy_resolution, 2));
-      WSContentSend_PD(HTTP_SNS_ENERGY_YESTERDAY, WebEnergyFmt(energy_yesterday_kWh, Settings->flag2.energy_resolution, 2));
-      WSContentSend_PD(HTTP_SNS_ENERGY_TOTAL, WebEnergyFmt(Energy->total, Settings->flag2.energy_resolution, 2));
+      if (Energy->energy_available) {
+        WSContentSend_PD(HTTP_SNS_ENERGY_TODAY, WebEnergyFmt(Energy->daily_kWh, Settings->flag2.energy_resolution, 2));
+        WSContentSend_PD(HTTP_SNS_ENERGY_YESTERDAY, WebEnergyFmt(energy_yesterday_kWh, Settings->flag2.energy_resolution, 2));
+        WSContentSend_PD(HTTP_SNS_ENERGY_TOTAL, WebEnergyFmt(Energy->total, Settings->flag2.energy_resolution, 2));
+      }
       if (!isnan(Energy->export_active[0])) {
         uint32_t single = (!isnan(Energy->export_active[1]) && !isnan(Energy->export_active[2])) ? 2 : 1;
         WSContentSend_PD(HTTP_SNS_EXPORT_ACTIVE, WebEnergyFmt(Energy->export_active, Settings->flag2.energy_resolution, single));
@@ -1769,9 +1767,6 @@ bool Xdrv03(uint32_t function)
         break;
       case FUNC_RESET_SETTINGS:
         EnergySettingsLoad(1);
-        break;
-      case FUNC_RESTORE_SETTINGS:
-        result = EnergySettingsRestore();
         break;
       case FUNC_SAVE_SETTINGS:
         EnergySettingsSave();

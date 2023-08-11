@@ -435,6 +435,8 @@ const uint16_t kGpioConvert[] PROGMEM = {
   AGPIO(GPIO_DDS2382_RX),     // DDS2382 Serial interface
   AGPIO(GPIO_DDSU666_TX),     // DDSU666 Serial interface
   AGPIO(GPIO_DDSU666_RX),     // DDSU666 Serial interface
+  AGPIO(GPIO_DDSU666_LISTEN_RX),     // DDSU666 Serial interface
+  AGPIO(GPIO_BURST_CONTROL_PWM),     // Burst Control PWM Pin
   AGPIO(GPIO_SM2135_CLK),     // SM2135 CLOCK
   AGPIO(GPIO_SM2135_DAT),     // SM2135 DATA
   AGPIO(GPIO_DEEPSLEEP),

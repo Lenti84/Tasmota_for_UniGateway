@@ -1894,7 +1894,11 @@ void DisplayInitDriver(void) {
 void DisplaySetPower(void) {
   if (!disp_device) { return; }  // Not initialized yet
 
+  Serial.print("DisplaySetPower ");
+
   disp_power = bitRead(XdrvMailbox.index, disp_device -1);
+
+  Serial.println(disp_power, DEC);
 
 //AddLog(LOG_LEVEL_DEBUG, PSTR("DSP: Power %d"), disp_power);
 
