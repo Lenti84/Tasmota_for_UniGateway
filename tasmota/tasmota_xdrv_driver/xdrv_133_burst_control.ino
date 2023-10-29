@@ -394,7 +394,7 @@ void power_ctrl_cycle (int enable) {
   }
 
   // if display is available, switch on LCD light when heater is working  
-  if (0x01 == Settings->display_model) {
+  if (TasmotaGlobal.i2c_enabled && 0x01 == Settings->display_model) {
     //Serial.println("Display ready");
     if (actual_power > 0) lcd->backlight();
     else lcd->noBacklight();
