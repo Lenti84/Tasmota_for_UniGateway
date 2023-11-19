@@ -48,7 +48,10 @@ public:
     #ifdef CONFIG_IDF_TARGET_ESP32
         // Datasheet https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf,
         // Pinout    https://docs.espressif.com/projects/esp-idf/en/latest/esp32/_images/esp32-devkitC-v4-pinout.jpg
-        return (pin == 1) || (pin >= 3 && pin <= 5) ||
+        
+        #warning "edited to support GPIO2 as TX pin"
+        //return (pin == 1) || (pin >= 3 && pin <= 5) ||
+        return (pin == 1) || (pin == 2) || (pin >= 3 && pin <= 5) ||        
             (pin >= 12 && pin <= 15) ||
             (!psramFound() && pin >= 16 && pin <= 17) ||
             (pin >= 18 && pin <= 19) ||

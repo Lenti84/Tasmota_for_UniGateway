@@ -336,9 +336,10 @@ void Ddsu666ListenSnsInit(void)
 }
 
 void Ddsu666ListenDrvInit(void)
-{
-  Serial.println(F("Ddsu666ListenDrvInit"));  
+{   
   if (PinUsed(GPIO_DDSU666_LISTEN_RX)) {
+    Serial.println(F("Ddsu666ListenDrvInit")); 
+    
     TasmotaGlobal.energy_driver = XNRG_25;
     Energy->voltage_available = false;
     Energy->current_available = false;

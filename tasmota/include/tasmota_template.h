@@ -170,6 +170,7 @@ enum UserSelectablePins {
   GPIO_I2S_DIN,  GPIO_I2S_BCLK_IN,  GPIO_I2S_WS_IN,
   GPIO_INTERRUPT,
   GPIO_MCP2515_CS,                     // MCP2515 Chip Select
+  GPIO_MCP2515_INT,                    // MCP2515 Interupt
   GPIO_HRG15_TX, GPIO_HRG15_RX,        // Hydreon RG-15 rain sensor serial interface
   GPIO_VINDRIKTNING_RX,                // IKEA VINDRIKTNING Serial interface
   GPIO_BL0939_RX,                      // BL0939 Serial interface (Dual R3 v2)
@@ -212,6 +213,7 @@ enum UserSelectablePins {
   GPIO_GM861_TX, GPIO_GM861_RX,         // GM861 Serial interface
   GPIO_DINGTIAN_OE,                     // New version of Dingtian relay board where PL is not shared with OE
   GPIO_DDSU666_LISTEN_RX,               // DDSU666 Serial interface listen mode
+  GPIO_DCOM_MB_LT_TX, GPIO_DCOM_MB_LT_RX, GPIO_DCOM_MB_LT_ENA, // DCOM MB LT Serial interface
   GPIO_BURST_CONTROL_PWM,               // BURST CONTROL PWM Pin
   GPIO_SENSOR_END };
 
@@ -425,6 +427,7 @@ const char kSensorNames[] PROGMEM =
   D_SENSOR_I2S_DIN "|" D_SENSOR_I2S_BCLK_IN "|" D_SENSOR_I2S_WS_IN "|"
   D_SENSOR_INTERRUPT "|"
   D_SENSOR_MCP2515_CS "|"
+  D_SENSOR_MCP2515_INT "|"
   D_SENSOR_HRG15_TX "|" D_SENSOR_HRG15_RX "|"
   D_SENSOR_VINDRIKTNING_RX "|"
   D_SENSOR_BL0939_RX "|"
@@ -472,6 +475,9 @@ const char kSensorNames[] PROGMEM =
   D_SENSOR_GM861_TX "|" D_SENSOR_GM861_RX "|"
   D_GPIO_DINGTIAN_OE "|"
   D_SENSOR_DDSU666_LISTEN_RX "|"
+  D_SENSOR_DCOM_MB_LT_TX   "|"
+  D_SENSOR_DCOM_MB_LT_RX    "|"
+  D_SENSOR_DCOM_MB_LT_ENA    "|"
   D_SENSOR_BURST_CONTROL_PWM "|"
   ;
 
@@ -605,6 +611,10 @@ const uint16_t kGpioNiceList[] PROGMEM = {
 #if defined(USE_MCP2515) || defined(USE_CANSNIFFER)
   AGPIO(GPIO_MCP2515_CS),
 #endif  // USE_MCP2515
+#if defined(USE_UVRCAN)
+  AGPIO(GPIO_MCP2515_CS),
+  AGPIO(GPIO_MCP2515_INT),
+#endif  // USE_UVRCAN
 #ifdef USE_MCP23XXX_DRV
   AGPIO(GPIO_MCP23SXX_CS) + MAX_MCP23XXX,
 #endif  // USE_MCP23XXX_DRV
@@ -894,7 +904,12 @@ const uint16_t kGpioNiceList[] PROGMEM = {
 #endif  // USE_DDSU666
 #ifdef USE_DDSU666_LISTEN  
   AGPIO(GPIO_DDSU666_LISTEN_RX),        // DDSU666 Serial interface
-#endif  // USE_DDSU666
+#endif  // USE_DDSU666_LISTEN
+#ifdef USE_DCOM_LT_MB  
+  AGPIO(GPIO_DCOM_MB_LT_TX),            // DCOM MB LT Serial interface
+  AGPIO(GPIO_DCOM_MB_LT_RX),            // DCOM MB LT Serial interface
+  AGPIO(GPIO_DCOM_MB_LT_ENA),            // DCOM MB LT Serial interface
+#endif  // USE_DCOM_LT_MB
 #ifdef USE_BURST_CONTROL
   AGPIO(GPIO_BURST_CONTROL_PWM),        // BURST CONTROL PWM Pin
 #endif  // USE_BURST_CONTROL

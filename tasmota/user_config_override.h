@@ -90,9 +90,13 @@ Examples :
 
 
 // PV heater test
+#define USE_SPI
 #define USE_RULES
 #define USE_BURST_CONTROL
 #define USE_TIMEPROP
+#define USE_DCOM_LT_MB
+#define USE_UVRCAN
+//#define USE_MCP2515
 #define USE_DDSU666_LISTEN              // Add support for Chint DDSU666 Modbus energy monitor (+0k6 code) in listen only mode
 #define USE_MLX90640                    // just for test
 #define USE_I2C
@@ -116,6 +120,8 @@ Examples :
 #undef USE_DISPLAY_MATRIX   
 #undef USE_DISPLAY_SEVENSEG          
 #undef USE_AUTOCONF    
+#undef USE_MCP23XXX_DRV  
+#undef USE_MCP230xx
 
 
 

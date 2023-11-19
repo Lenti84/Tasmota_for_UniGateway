@@ -436,6 +436,9 @@ const uint16_t kGpioConvert[] PROGMEM = {
   AGPIO(GPIO_DDSU666_TX),     // DDSU666 Serial interface
   AGPIO(GPIO_DDSU666_RX),     // DDSU666 Serial interface
   AGPIO(GPIO_DDSU666_LISTEN_RX),     // DDSU666 Serial interface
+  AGPIO(GPIO_DCOM_MB_LT_TX),  // DCOM MB LT Serial interface RS485 Tx
+  AGPIO(GPIO_DCOM_MB_LT_RX),  // DCOM MB LT Serial interface RS485 Rx
+  AGPIO(GPIO_DCOM_MB_LT_ENA),  // DCOM MB LT Serial interface RS485 Enable
   AGPIO(GPIO_BURST_CONTROL_PWM),     // Burst Control PWM Pin
   AGPIO(GPIO_SM2135_CLK),     // SM2135 CLOCK
   AGPIO(GPIO_SM2135_DAT),     // SM2135 DATA

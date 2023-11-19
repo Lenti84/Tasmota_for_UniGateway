@@ -48,6 +48,8 @@ signed int   ctrl_net_power_limit = POWER_CTRL_NET_POWER_LIMIT;       // Leistun
 unsigned int ctrl_load_step = POWER_CTRL_HEATER_POWER_DEFAULT / POWER_CTRL_PERIODE_LEN_DEFAULT / TIMER0_INTERVAL_MS;      // smallest fraction of power we can control
 volatile unsigned int ctrl_steps = POWER_CTRL_PERIODE_LEN_DEFAULT / TIMER0_INTERVAL_MS;
 
+uint8_t      burstinit = 0;
+
 signed int   manual_power = -1;            // manual power overriding all control logic, 0...100 %, -1 = off
 unsigned int actual_power = 0;            // actual PV heater power, 0...100 %
 signed int   actual_active_power = 0;     // actual active power in W, pos = Consumption, neg = Grid Feeding
@@ -128,6 +130,8 @@ bool IRAM_ATTR TimerHandler0(void * timerNo)
 
 void BurstControlInit(void) {
   if (PinUsed(GPIO_BURST_CONTROL_PWM)) {
+
+    burstinit = 1;
 
     AddLog(LOG_LEVEL_INFO, PSTR("xdrv: Burst Control Init"));
     // Interval in microsecs
@@ -286,6 +290,7 @@ const char HTTP_SNS_BURST_DATA[] PROGMEM =
 
 void BurstControlShow(bool json)
 {
+  if(burstinit) {
     // char voltage[16];
     // dtostrfd(123, Settings->flag2.voltage_resolution, voltage);
     // char current[16];
@@ -323,98 +328,100 @@ void BurstControlShow(bool json)
 
 #endif  // USE_WEBSERVER
     }
-  
+  }
 }
 
 
 
 void power_ctrl_cycle (int enable) {
 
-  static unsigned int power_integrator = 0;
-  static unsigned int zero_power_cnt = 0;
-  static unsigned int ctrldelay = 0;
+  if(burstinit) {
 
-  if (net_power_override == 0) {
-    actual_active_power = (signed int) (1 * Energy->active_power[0]);
-  }
-  else {
-    actual_active_power = net_power_override;
-    Serial.print("Net Power Override: "); Serial.print(actual_active_power, DEC); Serial.println(" W");
-  }
+    static unsigned int power_integrator = 0;
+    static unsigned int zero_power_cnt = 0;
+    static unsigned int ctrldelay = 0;
 
-  // manual or controlled mode?
-  if (manual_power == -1) {      // controlled mode
-
-    ctrldelay++;
-    if(ctrldelay >= POWER_CTRL_DELAY) {
-      ctrldelay = 0;
-
-      // fast stop if no sun power is available (over setting net power limit)
-      if (actual_active_power >= ctrl_net_power_limit) {        
-        zero_power_cnt++;
-        if (zero_power_cnt > 2) {    // 2 seconds dead time
-          zero_power_cnt = 0;
-          power_integrator = 0;
-        }
-      }
-      // fast lane - if accessible power is bigger than half of heater power demand jump right in
-      // else if ((actual_active_power < -(ctrl_heater_power/2)) && (power_integrator < (ctrl_gate_periode / 10 / 2) - 1)) {
-      //   power_integrator = (ctrl_gate_periode / 10 / 2) - 1;
-      //   zero_power_cnt = 0;
-      // }    
-      // slow increase of power if available
-      else if (actual_active_power < -(-ctrl_net_power_limit + ctrl_load_step + POWER_CTRL_MARGIN_INC)) {
-        power_integrator++;
-        zero_power_cnt = 0;
-      }
-      // slow decrease of power
-      else if (actual_active_power > -(-ctrl_net_power_limit + ctrl_load_step + POWER_CTRL_MARGIN_DEC)) {
-        if (power_integrator > 0) power_integrator--;
-        zero_power_cnt = 0;
-      }
-      else {
-        //power_integrator = 0;
-      }
+    if (net_power_override == 0) {
+      actual_active_power = (signed int) (1 * Energy->active_power[0]);
+    }
+    else {
+      actual_active_power = net_power_override;
+      Serial.print("Net Power Override: "); Serial.print(actual_active_power, DEC); Serial.println(" W");
     }
 
-      // limit
-      if(power_integrator >= ctrl_steps) power_integrator = ctrl_steps;
+    // manual or controlled mode?
+    if (manual_power == -1) {      // controlled mode
 
-      pwm_fraction = power_integrator;
+      ctrldelay++;
+      if(ctrldelay >= POWER_CTRL_DELAY) {
+        ctrldelay = 0;
 
-      // actual power in percent
-      actual_power = (100 * power_integrator) / ctrl_steps;
+        // fast stop if no sun power is available (over setting net power limit)
+        if (actual_active_power >= ctrl_net_power_limit) {        
+          zero_power_cnt++;
+          if (zero_power_cnt > 2) {    // 2 seconds dead time
+            zero_power_cnt = 0;
+            power_integrator = 0;
+          }
+        }
+        // fast lane - if accessible power is bigger than half of heater power demand jump right in
+        // else if ((actual_active_power < -(ctrl_heater_power/2)) && (power_integrator < (ctrl_gate_periode / 10 / 2) - 1)) {
+        //   power_integrator = (ctrl_gate_periode / 10 / 2) - 1;
+        //   zero_power_cnt = 0;
+        // }    
+        // slow increase of power if available
+        else if (actual_active_power < -(-ctrl_net_power_limit + ctrl_load_step + POWER_CTRL_MARGIN_INC)) {
+          power_integrator++;
+          zero_power_cnt = 0;
+        }
+        // slow decrease of power
+        else if (actual_active_power > -(-ctrl_net_power_limit + ctrl_load_step + POWER_CTRL_MARGIN_DEC)) {
+          if (power_integrator > 0) power_integrator--;
+          zero_power_cnt = 0;
+        }
+        else {
+          //power_integrator = 0;
+        }
+      }
+
+        // limit
+        if(power_integrator >= ctrl_steps) power_integrator = ctrl_steps;
+
+        pwm_fraction = power_integrator;
+
+        // actual power in percent
+        actual_power = (100 * power_integrator) / ctrl_steps;
+
+    }
+    else {  // manual mode overrides max value and control mode
+        pwm_fraction = (manual_power) * ctrl_gate_periode / 100 / TIMER0_INTERVAL_MS;
+        actual_power = manual_power;
+
+        Serial.print("Manual Setting: "); Serial.print(manual_power, DEC); Serial.println(" %");
+    }
+
+    // if display is available, switch on LCD light when heater is working  
+    if (TasmotaGlobal.i2c_enabled && 0x01 == Settings->display_model) {
+      //Serial.println("Display ready");
+      if (actual_power > 0) lcd->backlight();
+      else lcd->noBacklight();
+    }
+
+
+    AddLog(LOG_LEVEL_INFO, PSTR("PV Heizer: "
+      "perc: %d"),
+      actual_power);
+
+
+    if (1) {
+      Response_P(PSTR("{\"%s\":{"), "BURSTCTRL");
+      ResponseAppend_P(PSTR("\"%s\":%d"), "power", actual_power);
+      ResponseJsonEndEnd();
+
+      XdrvRulesProcess(0);
+    }
 
   }
-  else {  // manual mode overrides max value and control mode
-      pwm_fraction = (manual_power) * ctrl_gate_periode / 100 / TIMER0_INTERVAL_MS;
-      actual_power = manual_power;
-
-      Serial.print("Manual Setting: "); Serial.print(manual_power, DEC); Serial.println(" %");
-  }
-
-  // if display is available, switch on LCD light when heater is working  
-  if (TasmotaGlobal.i2c_enabled && 0x01 == Settings->display_model) {
-    //Serial.println("Display ready");
-    if (actual_power > 0) lcd->backlight();
-    else lcd->noBacklight();
-  }
-
-
-  AddLog(LOG_LEVEL_INFO, PSTR("PV Heizer: "
-     "perc: %d"),
-     actual_power);
-
-
-  if (1) {
-    Response_P(PSTR("{\"%s\":{"), "BURSTCTRL");
-    ResponseAppend_P(PSTR("\"%s\":%d"), "power", actual_power);
-    ResponseJsonEndEnd();
-
-    XdrvRulesProcess(0);
-  }
-
-  
 }
 
 

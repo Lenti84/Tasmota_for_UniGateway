@@ -532,7 +532,35 @@ bool (* const xdrv_func_ptr[])(uint32_t) = {   // Driver Function Pointers
 #endif
 
 #ifdef XDRV_128
-  &Xdrv128
+  &Xdrv128,
+#endif
+
+#ifdef XDRV_129
+  &Xdrv129,
+#endif
+
+#ifdef XDRV_130
+  &Xdrv130,
+#endif
+
+#ifdef XDRV_131
+  &Xdrv131,
+#endif
+
+#ifdef XDRV_132
+  &Xdrv132,
+#endif
+
+#ifdef XDRV_133
+  &Xdrv133,
+#endif
+
+#ifdef XDRV_134
+  &Xdrv134,
+#endif
+
+#ifdef XDRV_135
+  &Xdrv135
 #endif
 };
 
@@ -1057,8 +1085,37 @@ const uint8_t kXdrvList[] = {
 #endif
 
 #ifdef XDRV_128
-  XDRV_128
+  XDRV_128,
 #endif
+
+#ifdef XDRV_129
+  XDRV_129,
+#endif
+
+#ifdef XDRV_130
+  XDRV_130,
+#endif
+
+#ifdef XDRV_131
+  XDRV_131,
+#endif
+
+#ifdef XDRV_132
+  XDRV_132,
+#endif
+
+#ifdef XDRV_133
+  XDRV_133,
+#endif
+
+#ifdef XDRV_134
+  XDRV_134,
+#endif
+
+#ifdef XDRV_135
+  XDRV_135
+#endif
+
 };
 
 /*********************************************************************************************/

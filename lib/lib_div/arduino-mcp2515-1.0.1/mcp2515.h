@@ -399,7 +399,8 @@ class MCP2515
             MCP_RXB1DATA = 0x76
         };
 
-        static const uint32_t SPI_CLOCK = 10000000; // 10MHz
+        #warning "edited to 1 MHz"
+        static const uint32_t SPI_CLOCK = 1000000; // 1MHz
 
         static const int N_TXBUFFERS = 3;
         static const int N_RXBUFFERS = 2;
