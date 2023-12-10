@@ -23,6 +23,8 @@
  *
 \*********************************************************************************************/
 
+#define DCOM_LT_DEBUG       // comment to disable debug messages over uart
+
 #define XDRV_134             134
 
 
@@ -37,6 +39,10 @@
 #define DCOM_REGISTER_UNAVAILABLE   32766     // Requested register is not available in current configuration
 #define DCOM_REGISTER_WAITFORVALUE  32765     // Requested register value is not loaded
 
+#define DCOM_MODBUS_INPUT_REG       0x04      // input registers
+#define DCOM_MODBUS_HOLD_REG        0x03      // holding registers
+#define DCOM_MODBUS_HOLD_WRITE_REG  0x06      // single holding register write
+
 
 #include <TasmotaModbus.h>
 #include "../../SoftwareSerial-8.0.3/src/SoftwareSerial.h"
@@ -47,20 +53,19 @@ uint16_t MBCalculateCRC(uint8_t *frame, uint8_t num);
 
 uint8_t  DCOMInit = 0;
 
-// read all default registers
-// DCOM LT MB
+// DCOM LT MB input registers
 const uint16_t dcom_lt_mb_start_addresses[] {
-  21, // 0 - Unit Error               int16   0:No Error, 1: Fault, 2: Warning
-  22, // 1 - Unit Error Code          text16  2 Ascii Characters
-  23, // 2 - Unit Error Sub Code      int16   If No error 32766, If Unit Error 0 .. 99
-  30, // 3 - Circulation Pump Running int16   0:OFF 1:ON
-  31, // 4 - Compressor Run           int16   0:OFF 1:ON
-  32, // 5 - Booster Heater Run       int16   0:OFF 1:ON
-  33, // 6 - Disinfection Operation   int16   0:OFF 1:ON
-  35, // 7 - Defrost/Startup          int16   0:OFF 1:ON
-  36, // 8 - Hot Start                int16   0:OFF 1:ON
-  37, // 9 - 3-Way Valve              int16   0: Space Heating, 1: DHW
-  38, // 10 - Operation Mode           int16   1: Heating, 2: Cooling
+  21, // 0 - Unit Error                            int16   0:No Error, 1: Fault, 2: Warning
+  22, // 1 - Unit Error Code                       text16  2 Ascii Characters
+  23, // 2 - Unit Error Sub Code                   int16   If No error 32766, If Unit Error 0 .. 99
+  30, // 3 - Circulation Pump Running              int16   0:OFF 1:ON
+  31, // 4 - Compressor Run                        int16   0:OFF 1:ON
+  32, // 5 - Booster Heater Run                    int16   0:OFF 1:ON
+  33, // 6 - Disinfection Operation                int16   0:OFF 1:ON
+  35, // 7 - Defrost/Startup                       int16   0:OFF 1:ON
+  36, // 8 - Hot Start                             int16   0:OFF 1:ON
+  37, // 9 - 3-Way Valve                           int16   0: Space Heating, 1: DHW
+  38, // 10 - Operation Mode                       int16   1: Heating, 2: Cooling
   40, // 11 - Leaving Water Temperature pre PHE    temp16  -1.00..100.00ºC
   41, // 12 - Leaving Water Temperature pre BUH    temp16  -100.00..100.00ºC
   42, // 13 - Return Water Temperature             temp16  -100.00..100.00ºC
@@ -72,6 +77,7 @@ const uint16_t dcom_lt_mb_start_addresses[] {
 };
 
 // DCOM LT IO - sequencer mode
+// input registers
 const uint16_t dcom_lt_io_start_addresses[] {
   21, // 0  - Unit Error                            int16   0:No Error, 1: Fault, 2: Warning
   22, // 1  - Unit Error Code                       text16  2 Ascii Characters
@@ -98,10 +104,34 @@ const uint16_t dcom_lt_io_start_addresses[] {
   133 // 22 - Outside Air Temperature               temp16  -100.00..100.00ºC
 };
 
-struct DCOM_MB_LT {
-  uint8_t   read_state = 0;
-  uint8_t   send_retry = 0;
+// target registers
+// DCOM LT MB holding registers
+const uint16_t dcom_lt_mb_target_start_addresses[] { 
+  1,  // Leaving Water Main Heating Setpoint        int16	  25 .. 55ºC
+  2,  // Leaving Water Main Cooling Setpoint      	int16	  5 .. 22ºC
+  3,  // Operation Mode	                            int16	  0: Auto, 1:Heating, 2:Cooling
+  4,  // Space Heating/Cooling On/Off             	int16	  0:OFF 1:ON
+  6,  // Room Thermostat Control Heating Setpoint  	int16	  12 .. 30ºC
+  7,  // Room Thermostat Control Cooling Setpoint 	int16	  15 .. 35ºC
+  9,  // Quiet Mode Operation	                      int16	  0:OFF 1:ON
+  10, // DHW Reheat Setpoint	                      int16	  30 .. 60ºC
+  12, // DHW Reheat On/Off	                        int16	  0:OFF 1:ON
+  13,	// DHW Booster Mode On/Off              	    int16	  0:OFF 1:ON
+  53, // Weather Dependent Mode                     int16	  0:Fixed, 1: Weather Dependent, 2: Fixed+Scheduled, 3: Weather Dependent+Scheduled
+  54, // Weather Dependent Mode LWT Heating Setpoint Offset 	int16	  -10 .. 10ºC
+  55  // Weather Dependent Mode LWT Cooling Setpoint Offset 	int16	  -10 .. 10ºC
+};
 
+struct DCOM_MB_LT {
+  // driver
+  uint8_t   read_state = 0;
+  uint8_t   send_state = 0;
+  uint8_t   send_retry = 0;
+  uint8_t   send_active = 0;    // semaphore for send / recv control - send sequence in progress
+  uint8_t   recv_active = 1;    // semaphore for send / recv control - receive sequence in progress
+  uint8_t   writebuffer[4];     // write buffer to check if writing was successful
+
+  // input registers - measurement values
   uint16_t  unit_error = 0;
   char      unit_error_code[3] = "";
   uint16_t  unit_error_subcode = 0;
@@ -121,6 +151,22 @@ struct DCOM_MB_LT {
   float     liquid_refrig_temp = 0.0;
   float     flow_rate = 0.0;
   float     room_temp = 0.0;
+
+  // holding registers - inputs
+  uint16_t  target_leavingwaterheattemp = 25;     // Leaving Water Main Heating Setpoint
+  uint16_t  target_leavingwatercooltemp = 22;     // Leaving Water Main Cooling Setpoint
+  uint16_t  target_opmode = 0;                    // Operation Mode
+  uint16_t  target_spaceheatcool = 0;             // Space Heating/Cooling On/Off
+  uint16_t  target_roomheatsetp = 12;             // Room Thermostat Control Heating Setpoint
+  uint16_t  target_roomcoolsetp = 15;             // Room Thermostat Control Cooling Setpoint
+  uint16_t  target_quietmode = 0;                 // Quiet Mode Operation
+  uint16_t  target_reheatsetp = 30;               // DHW Reheat Setpoint
+  uint16_t  target_dhwreheat = 0;                 // DHW Reheat On/Off
+  uint16_t  target_dhwbooster = 0;                // DHW Booster Mode On/Off
+  uint16_t  target_weathermode = 0;               // Weather Dependent Mode
+  uint16_t  target_weatherheatoffset = 0;         // Weather Dependent Mode LWT Heating Setpoint Offset
+  uint16_t  target_weathercooloffset = 0;         // Weather Dependent Mode LWT Cooling Setpoint Offset
+
 } DcomMbLt;
 
 
@@ -167,22 +213,22 @@ void DCOMEvery100ms(void)
 {
   uint16_t data_len = DcomSwSerial.available();
   uint16_t crc;
+  uint8_t sendbuf[12];
+  bool found = false;
 
   if (DCOMInit) {
 
     if (data_len) {
-      uint8_t buffer[144];  // At least 
+      uint8_t buffer[20];  // At least 
 
-      //uint32_t error = Sdm630Modbus->ReceiveBuffer(buffer, 2);
       //AddLogBuffer(LOG_LEVEL_DEBUG_MORE, buffer, Sdm630Modbus->ReceiveCount());
 
-      uint32_t error = DcomSwSerial.read(buffer, data_len);
+      uint32_t error = DcomSwSerial.read(&buffer[0], data_len);
 
       if (error == 0) {
         //AddLog(LOG_LEVEL_DEBUG, PSTR("SDM: SDM630 error %d"), error);
       } else {
         Serial.println(F("DCOM: recv data"));
-        bool found = false;
 
         Serial.print("DCOM: RX: ");
         for (uint16_t y = 0;y < data_len;y++) {
@@ -192,177 +238,387 @@ void DCOMEvery100ms(void)
         Serial.println("");
 
         // modbus check
-        if (buffer[0] == DCOM_LT_MB_ADDR && buffer[1] == 0x03) {
+        if (buffer[0] == DCOM_LT_MB_ADDR && (buffer[1] == DCOM_MODBUS_INPUT_REG || buffer[1] == DCOM_MODBUS_HOLD_WRITE_REG)) {
+          crc = MBCalculateCRC(&buffer[0], data_len-2);
+          // Serial.println(crc, HEX);
+          // Serial.println(buffer[data_len-1], HEX);
+          // Serial.println((uint8_t (crc >> 8)), HEX);
+          // Serial.println(buffer[data_len-2], HEX);
+          // Serial.println((uint8_t (0x00FF & crc)), HEX);
+
           //if (buffer[2] == 0 && buffer[3] == dcom_start_addresses[DcomMbLt.read_state]) {
-          if (buffer[2] == 2) {
+          if (DcomMbLt.recv_active && buffer[2] == 2) {
+            
+            if (buffer[data_len-1] == (uint8_t (crc >> 8)) && buffer[data_len-2] == (uint8_t (0x00FF & crc))) {            
+              found = true;
+              Serial.println("DCOM: crc ok");
+            }
+          }
+          else if ( DcomMbLt.send_active && \
+                    buffer[2] == DcomMbLt.writebuffer[0] && \
+                    buffer[3] == DcomMbLt.writebuffer[1] && \
+                    buffer[4] == DcomMbLt.writebuffer[2] && \
+                    buffer[5] == DcomMbLt.writebuffer[3] ) 
+          {
             crc = MBCalculateCRC(&buffer[0], data_len-2);
-            // Serial.println(crc, HEX);
-            // Serial.println(buffer[data_len-1], HEX);
-            // Serial.println((uint8_t (crc >> 8)), HEX);
-            // Serial.println(buffer[data_len-2], HEX);
-            // Serial.println((uint8_t (0x00FF & crc)), HEX);
             if (buffer[data_len-1] == (uint8_t (crc >> 8)) && buffer[data_len-2] == (uint8_t (0x00FF & crc))) {            
               found = true;
               Serial.println("DCOM: crc ok");
             }
           }
         }
+        else Serial.println("DCOM: package does not match");
 
         if (found) {
+          DcomMbLt.send_retry = 0; 
           int tempint;
+
+          // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++          
+          if(DcomMbLt.send_active) {
+            //DcomMbLt.send_active = 0;
+            Serial.println("Data packet with write holding");
+
+            // switch(DcomMbLt.send_state) {
+            //   case 0:                
+            //     break;
+            // }
+            DcomMbLt.send_state++;
+
+            if(DcomMbLt.send_state >= 4) {
+              Serial.println("DCOM: Switch to measurement values");
+              DcomMbLt.send_state = 0;
+              DcomMbLt.send_active = 0;
+              DcomMbLt.recv_active = 1;
+            }
+
+          }
+
+          // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+          else if(DcomMbLt.recv_active) {
+            //DcomMbLt.recv_active = 0;
+            Serial.println("Data packet with recv input");
           
-          // prepare int value and use only when needed
-          tempint = (((int) (buffer[3]) << 8) && ((int) (buffer[4]) & 0x00FF));
+            // prepare int value and use only when needed
+            tempint = (((int) (buffer[3]) << 8) && ((int) (buffer[4]) & 0x00FF));
 
-          switch(DcomMbLt.read_state) {
-            case 0:
-              DcomMbLt.unit_error = (uint16_t) ((buffer[4]) & 0x00FF);
-              break;
+            switch(DcomMbLt.read_state) {
+              case 0:
+                Serial.print("DCOM: 0 ");
+                DcomMbLt.unit_error = (uint16_t) ((buffer[4]) & 0x00FF);
+                break;
 
-            case 1:
-              Serial.print("DCOM: 1 ");
-              DcomMbLt.unit_error_code[0] = (char) (buffer[3]);
-              DcomMbLt.unit_error_code[1] = (char) (buffer[4]);
-              DcomMbLt.unit_error_code[2] = '\0';
-              Serial.println(DcomMbLt.unit_error_code);
-              break;
+              case 1:
+                Serial.print("DCOM: 1 ");
+                DcomMbLt.unit_error_code[0] = (char) (buffer[3]);
+                DcomMbLt.unit_error_code[1] = (char) (buffer[4]);
+                DcomMbLt.unit_error_code[2] = '\0';
+                Serial.println(DcomMbLt.unit_error_code);
+                break;
 
-            case 2:
-              
-              break;
+              case 2:
+                
+                break;
 
-            case 3:
-              
-              break;
+              case 3:
+                
+                break;
 
-            case 4:
-              
-              break;
+              case 4:
+                
+                break;
 
-            case 5:
-              
-              break;
+              case 5:
+                
+                break;
 
-            case 6:
-              
-              break;
+              case 6:
+                
+                break;
 
-            case 7:
-              
-              break;
+              case 7:
+                
+                break;
 
-            case 8:
-              
-              break;
+              case 8:
+                
+                break;
 
-            case 9:
-              
-              break;
+              case 9:
+                
+                break;
 
-            case 10:
-              
-              break;
+              case 10:
+                
+                break;
 
-            case 11:              
-              Serial.print("DCOM: 11 ");
-              //tempint = (((int) (buffer[3]) << 8) && ((int) (buffer[4]) & 0x00FF));
-              DcomMbLt.leaving_water_PHE_temp = (float) tempint;
+              case 11:              
+                Serial.print("DCOM: 11 ");
+                //tempint = (((int) (buffer[3]) << 8) && ((int) (buffer[4]) & 0x00FF));
+                DcomMbLt.leaving_water_PHE_temp = (float) tempint;
 
-              Serial.println(DcomMbLt.leaving_water_PHE_temp, DEC);
-              break;
+                Serial.println(DcomMbLt.leaving_water_PHE_temp, DEC);
+                break;
 
-            case 12:
-              
-              break;
+              case 12:
+                
+                break;
 
-            case 13:
-              
-              break;
+              case 13:
+                
+                break;
 
-            case 14:
-              
-              break;
+              case 14:
+                
+                break;
 
-            case 15:
-              
-              break;
+              case 15:
+                
+                break;
 
-            case 16:
-              
-              break;
+              case 16:
+                
+                break;
 
-            case 17:
-              
-              break;
+              case 17:
+                
+                break;
 
-            case 18:
-              
-              break;
+              case 18:
+                
+                break;
 
-            case 19:
-              Serial.print("DCOM: 19 ");              
-              //DcomMbLt.return_water_temp = (float) tempint;
-              #warning just for test
-              DcomMbLt.return_water_temp = 12.5;
-              Serial.println(DcomMbLt.return_water_temp, DEC);
-              break;
+              case 19:
+                Serial.print("DCOM: 19 ");              
+                //DcomMbLt.return_water_temp = (float) tempint;
+                #warning just for test
+                DcomMbLt.return_water_temp = 12.5;
+                Serial.println(DcomMbLt.return_water_temp, DEC);
+                break;
 
-            case 20:
-              
-              break;
+              case 20:
+                
+                break;
 
-            case 21:
-              Serial.print("DCOM: 21 ");              
-              DcomMbLt.outside_air_temp = (float) tempint;
-              Serial.println(DcomMbLt.outside_air_temp, DEC);
-              break;
+              case 21:
+                Serial.print("DCOM: 21 ");              
+                DcomMbLt.outside_air_temp = (float) tempint;
+                Serial.println(DcomMbLt.outside_air_temp, DEC);
+                break;
 
-            default:
+              default:
 
-              break;
+                break;
+            }
+
+            DcomMbLt.read_state++;
+            if (sizeof(dcom_lt_io_start_addresses)/2 == DcomMbLt.read_state) {
+              Serial.println("DCOM: Switch to target values");
+              DcomMbLt.read_state = 0;
+              DcomMbLt.recv_active = 0;
+              DcomMbLt.send_active = 1;
+            }
+
           }
         }
 
 
-        DcomMbLt.read_state++;
-        if (sizeof(dcom_lt_io_start_addresses)/2 == DcomMbLt.read_state) {
-          DcomMbLt.read_state = 0;
-        }
+
       }
     } // end data ready
 
-    if (0 == DcomMbLt.send_retry || data_len) {
-      DcomMbLt.send_retry = 5;
-      //Sdm630Modbus->Send(SDM630_ADDR, 0x04, sdm630_start_addresses[Sdm630.read_state], 2);
 
-      uint8_t sendbuf[10];
+    // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    if (DcomMbLt.send_active) {
+      
+      if(0 == DcomMbLt.send_retry || found) {
+        
+        DcomMbLt.send_retry = 5;
+        
+          // construct message
+        sendbuf[0] = DCOM_LT_MB_ADDR;
+        sendbuf[1] = DCOM_MODBUS_HOLD_WRITE_REG;   // write single holding register
+        sendbuf[2] = 0;                            // adress MSB
+                
+        // fetch data
+        switch(DcomMbLt.send_state) {
+          case 0:   // Leaving Water Main Heating Setpoint
+                    sendbuf[3] = 1;                                         // adress LSB
+                    sendbuf[4] = 0x00;                                      // data Hi
+                    sendbuf[5] = (uint8_t) DcomMbLt.target_leavingwaterheattemp;     // data Lo
+                    break;
 
-      // construct request
+          case 1:   // Operation mode
+                    sendbuf[3] = 3;                                         // adress LSB
+                    sendbuf[4] = 0x00;                                      // data Hi
+                    sendbuf[5] = (uint8_t) DcomMbLt.target_opmode;                   // data Lo
+                    break;
+
+          case 2:   // Quiet Mode Operation
+                    sendbuf[3] = 9;                                         // adress LSB
+                    sendbuf[4] = 0x00;                                      // data Hi
+                    sendbuf[5] = (uint8_t) DcomMbLt.target_quietmode;                // data Lo
+                    break;
+
+          case 3:   // DHW Booster Mode On/Off
+                    sendbuf[3] = 13;                                        // adress LSB
+                    sendbuf[4] = 0x00;                                      // data Hi
+                    sendbuf[5] = (uint8_t) DcomMbLt.target_dhwbooster;               // data Lo
+                    break;
+          
+          case 4:   //DcomMbLt.send_state = 0; 
+                    break;
+
+          default:  //DcomMbLt.send_state = 0; 
+                    break;
+        }
+
+        // end modbus message
+        crc = MBCalculateCRC(&sendbuf[0], 6);     // calculate CRC
+            
+        sendbuf[6] = (uint8_t) (0x00FF & crc);    // CRC LSB
+        sendbuf[7] = (uint8_t) (crc >> 8);        // CRC MSB
+
+        DcomSwSerial.write(&sendbuf[0],8);
+        DcomMbLt.writebuffer[0] = sendbuf[2];
+        DcomMbLt.writebuffer[1] = sendbuf[3];
+        DcomMbLt.writebuffer[2] = sendbuf[4];
+        DcomMbLt.writebuffer[3] = sendbuf[5];
+
+        #ifdef DCOM_LT_DEBUG
+          Serial.print("DCOM TX hold: ");
+          for (uint16_t y = 0;y < 8;y++) {
+            Serial.print(sendbuf[y], HEX);
+            Serial.print(", ");
+          }
+          Serial.println("");
+        #endif
+
+      } else {
+        DcomMbLt.send_retry--;
+      }
+    }
+    
+    // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    else if (DcomMbLt.recv_active) {
+      Serial.print("send_retry "); Serial.println(DcomMbLt.send_retry, DEC);
+      Serial.print("read state "); Serial.println(DcomMbLt.read_state, DEC);
+      if(0 == DcomMbLt.send_retry || found) {
+        //DcomMbLt.recv_active = 1;
+
+        DcomMbLt.send_retry = 5;        
+
+        //uint8_t sendbuf[10];
+
+        // construct request
+        sendbuf[0] = DCOM_LT_MB_ADDR;
+        sendbuf[1] = DCOM_MODBUS_INPUT_REG; // input registers
+        sendbuf[2] = 0;                     // adress MSB
+        sendbuf[3] = dcom_lt_io_start_addresses[DcomMbLt.read_state];    // adress LSB
+        sendbuf[4] = 0;                     // register count MSB
+        sendbuf[5] = 1;                     // register count LSB
+        
+        crc = MBCalculateCRC(&sendbuf[0], 6);     // calculate CRC
+        
+        sendbuf[6] = (uint8_t) (0x00FF & crc);    // CRC LSB
+        sendbuf[7] = (uint8_t) (crc >> 8);        // CRC MSB
+
+        DcomSwSerial.write(&sendbuf[0],8);
+
+        #ifdef DCOM_LT_DEBUG
+          Serial.print("DCOM TX input: ");
+          for (uint16_t y = 0;y < 8;y++) {
+            Serial.print(sendbuf[y], HEX);
+            Serial.print(", ");
+          }
+          Serial.println("");
+        #endif      
+        
+      } else {
+        DcomMbLt.send_retry--;
+      }
+    }
+
+  }
+
+  // test
+  DcomMbLt.leaving_water_PHE_temp = 1.2;
+  DcomMbLt.leaving_water_BHU_temp = 2.3;
+  DcomMbLt.return_water_temp = 3.4;
+  DcomMbLt.dom_hot_water_temp = 4.5;
+
+}
+
+// send routine
+void DCOMEvery250ms(void)
+{
+  uint8_t sendbuf[10];
+  uint16_t crc;
+
+  if (DCOMInit) {
+    if (DcomMbLt.send_active) {
+      //DcomMbLt.send_active = 1;
+
+      // construct message
       sendbuf[0] = DCOM_LT_MB_ADDR;
-      sendbuf[1] = 0x03;                // Input register
-      sendbuf[2] = 0;                   // adress MSB
-      sendbuf[3] = dcom_lt_io_start_addresses[DcomMbLt.read_state];    // adress LSB
-      sendbuf[4] = 0;                   // register count MSB
-      sendbuf[5] = 1;                   // register count LSB
+      sendbuf[1] = DCOM_MODBUS_HOLD_WRITE_REG;   // write single holding register
+      sendbuf[2] = 0;                            // adress MSB
       
+        
+      // fetch data
+      switch(DcomMbLt.send_state) {
+        case 0:   // Leaving Water Main Heating Setpoint
+                  sendbuf[3] = 1;                                         // adress LSB
+                  sendbuf[4] = 0x00;                                      // data Hi
+                  sendbuf[5] = (uint8_t) DcomMbLt.target_leavingwaterheattemp;     // data Lo
+                  break;
+
+        case 1:   // Operation mode
+                  sendbuf[3] = 3;                                         // adress LSB
+                  sendbuf[4] = 0x00;                                      // data Hi
+                  sendbuf[5] = (uint8_t) DcomMbLt.target_opmode;                   // data Lo
+                  break;
+
+        case 2:   // Quiet Mode Operation
+                  sendbuf[3] = 9;                                         // adress LSB
+                  sendbuf[4] = 0x00;                                      // data Hi
+                  sendbuf[5] = (uint8_t) DcomMbLt.target_quietmode;                // data Lo
+                  break;
+
+        case 3:   // DHW Booster Mode On/Off
+                  sendbuf[3] = 13;                                        // adress LSB
+                  sendbuf[4] = 0x00;                                      // data Hi
+                  sendbuf[5] = (uint8_t) DcomMbLt.target_dhwbooster;               // data Lo
+                  break;
+        
+        case 4:   //DcomMbLt.send_state = 0; 
+                  break;
+
+        default:  //DcomMbLt.send_state = 0; 
+                  break;
+      }
+
+      //DcomMbLt.send_state++;
+
+      // end modbus message
       crc = MBCalculateCRC(&sendbuf[0], 6);     // calculate CRC
-      
+          
       sendbuf[6] = (uint8_t) (0x00FF & crc);    // CRC LSB
       sendbuf[7] = (uint8_t) (crc >> 8);        // CRC MSB
 
-      Serial.print("DCOM TX: ");
+    #ifdef DCOM_LT_DEBUG
+      Serial.print("DCOM TX Set: ");
       for (uint16_t y = 0;y < 8;y++) {
         Serial.print(sendbuf[y], HEX);
         Serial.print(", ");
       }
       Serial.println("");
+    #endif
+
+      DcomSwSerial.write(&sendbuf[0],8);   
       
-      DcomSwSerial.write(&sendbuf[0],8);      
 
-    } else {
-      DcomMbLt.send_retry--;
+
     }
-
   }
 }
 
@@ -411,6 +667,10 @@ bool Xdrv134(uint32_t function)
 
   switch (function) {
     case FUNC_EVERY_100_MSECOND:
+      //DCOMEvery100ms();
+      break;
+    case FUNC_EVERY_250_MSECOND:
+      //DCOMEvery250ms();
       DCOMEvery100ms();
       break;
     case FUNC_INIT:

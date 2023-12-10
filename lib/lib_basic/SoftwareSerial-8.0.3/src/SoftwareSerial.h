@@ -405,15 +405,15 @@ public:
         //int bufCapacity = 64, int isrBufCapacity = 0) {
         int bufCapacity = 256, int isrBufCapacity = 0) {
         
-        Serial.println("begin SW UART");
+        //Serial.println("begin SW UART");
         
         UARTBase::begin(baud, config, rxPin, txPin, invert);
         if (GpioCapabilities::isValidInputPin(rxPin)) {
-            Serial.println("beginRX");
+            //Serial.println("beginRX");
             beginRx(GpioCapabilities:: hasPullUp(rxPin), bufCapacity, isrBufCapacity);            
         }
         if (GpioCapabilities::isValidOutputPin(txPin)) {
-            Serial.println("beginTX");
+            //Serial.println("beginTX");
             beginTx();
         }
         enableRx(true);
