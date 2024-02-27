@@ -96,12 +96,12 @@ const uint16_t dcom_lt_io_start_addresses[] {
   76, // 14 - Defrost/Startup                       int16   0:OFF 1:ON
   77, // 15 - DHW Reheat On/Off                     int16   0:OFF 1:ON
   78, // 16 - Booster Heater Run                    int16   0:OFF 1:ON
-  122,// 17 - Unit Error Code                       text16  2 Ascii Characters
-  123,// 18 - Leaving Water Temperature pre BUH     temp16  -100.00..100.00ºC
-  136,// 19 - Unit Error Sub Code                   int16   If No error 32766, If Unit Error 0 .. 99
-  131,// 20 - Return Water Temperature              temp16  -100.00..100.00ºC
-  132,// 21 - Domestic Hot Water Temperature        temp16  -100.00..100.00ºC
-  133 // 22 - Outside Air Temperature               temp16  -100.00..100.00ºC
+  //122,// 17 - Unit Error Code                       text16  2 Ascii Characters
+  //123,// 18 - Leaving Water Temperature pre BUH     temp16  -100.00..100.00ºC
+  //136,// 19 - Unit Error Sub Code                   int16   If No error 32766, If Unit Error 0 .. 99
+  131,// 17 - Return Water Temperature              temp16  -100.00..100.00ºC
+  132,// 18 - Domestic Hot Water Temperature        temp16  -100.00..100.00ºC
+  133 // 19 - Outside Air Temperature               temp16  -100.00..100.00ºC
 };
 
 // target registers
@@ -169,6 +169,23 @@ struct DCOM_MB_LT {
 
 } DcomMbLt;
 
+// memory to identify values changes and only send out when something has changed
+struct DCOM_MB_LT_TARGET_MEMORY {
+// holding registers - inputs
+  uint16_t  target_leavingwaterheattemp = 25;     // Leaving Water Main Heating Setpoint
+  uint16_t  target_leavingwatercooltemp = 22;     // Leaving Water Main Cooling Setpoint
+  uint16_t  target_opmode = 0;                    // Operation Mode
+  uint16_t  target_spaceheatcool = 0;             // Space Heating/Cooling On/Off
+  uint16_t  target_roomheatsetp = 12;             // Room Thermostat Control Heating Setpoint
+  uint16_t  target_roomcoolsetp = 15;             // Room Thermostat Control Cooling Setpoint
+  uint16_t  target_quietmode = 0;                 // Quiet Mode Operation
+  uint16_t  target_reheatsetp = 30;               // DHW Reheat Setpoint
+  uint16_t  target_dhwreheat = 0;                 // DHW Reheat On/Off
+  uint16_t  target_dhwbooster = 0;                // DHW Booster Mode On/Off
+  uint16_t  target_weathermode = 0;               // Weather Dependent Mode
+  uint16_t  target_weatherheatoffset = 0;         // Weather Dependent Mode LWT Heating Setpoint Offset
+  uint16_t  target_weathercooloffset = 0;         // Weather Dependent Mode LWT Cooling Setpoint Offset
+} DcomMbLtMem;
 
 /*********************************************************************************************/
 
@@ -218,6 +235,8 @@ void DCOMEvery100ms(void)
 
   if (DCOMInit) {
 
+    // process received data from DCOM module
+    // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     if (data_len) {
       uint8_t buffer[20];  // At least 
 
@@ -273,15 +292,11 @@ void DCOMEvery100ms(void)
           DcomMbLt.send_retry = 0; 
           int tempint;
 
+          // evaluate measurement values from DCOM module
           // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++          
           if(DcomMbLt.send_active) {
-            //DcomMbLt.send_active = 0;
             Serial.println("Data packet with write holding");
 
-            // switch(DcomMbLt.send_state) {
-            //   case 0:                
-            //     break;
-            // }
             DcomMbLt.send_state++;
 
             if(DcomMbLt.send_state >= 4) {
@@ -290,119 +305,182 @@ void DCOMEvery100ms(void)
               DcomMbLt.send_active = 0;
               DcomMbLt.recv_active = 1;
             }
-
           }
 
           // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
           else if(DcomMbLt.recv_active) {
-            //DcomMbLt.recv_active = 0;
             Serial.println("Data packet with recv input");
           
             // prepare int value and use only when needed
             tempint = (((int) (buffer[3]) << 8) && ((int) (buffer[4]) & 0x00FF));
 
             switch(DcomMbLt.read_state) {
-              case 0:
-                Serial.print("DCOM: 0 ");
-                DcomMbLt.unit_error = (uint16_t) ((buffer[4]) & 0x00FF);
+
+              // Unit Error 
+              case 0:                             
+                //DcomMbLt.unit_error = (uint16_t) ((buffer[4]) & 0x00FF);
+                DcomMbLt.unit_error = (uint16_t) (tempint);
+                #ifdef DCOM_LT_DEBUG
+                  Serial.print("DCOM: 0 - Unit Error ");
+                  Serial.println(DcomMbLt.unit_error, DEC);
+                #endif
                 break;
 
+              // Unit Error Code
               case 1:
-                Serial.print("DCOM: 1 ");
                 DcomMbLt.unit_error_code[0] = (char) (buffer[3]);
                 DcomMbLt.unit_error_code[1] = (char) (buffer[4]);
                 DcomMbLt.unit_error_code[2] = '\0';
-                Serial.println(DcomMbLt.unit_error_code);
+                #ifdef DCOM_LT_DEBUG
+                  Serial.print("DCOM: 1 - Unit Error Code ");
+                  Serial.println(DcomMbLt.unit_error_code);
+                #endif
                 break;
 
+              // Leaving Water Temperature pre BUH
               case 2:
-                
+                DcomMbLt.leaving_water_BHU_temp = (uint16_t) (tempint);
+                #ifdef DCOM_LT_DEBUG
+                  Serial.print("DCOM: 2 - Leaving Water Temperature pre BUH ");
+                  Serial.println(DcomMbLt.leaving_water_BHU_temp);
+                #endif
                 break;
 
+              // Unit Error Sub Code
               case 3:
-                
+                DcomMbLt.unit_error_subcode = (uint16_t) (tempint);
+                #ifdef DCOM_LT_DEBUG
+                  Serial.print("DCOM: 3 - Unit Error Subcode");
+                  Serial.println(DcomMbLt.unit_error_subcode, DEC);
+                #endif                
                 break;
 
+              // 3-Way Valve
               case 4:
-                
+                DcomMbLt.valve_3way = (uint16_t) (tempint);
+                #ifdef DCOM_LT_DEBUG
+                  Serial.print("DCOM: 4 - 3-Way Valve");
+                  Serial.println(DcomMbLt.valve_3way, DEC);
+                #endif                 
                 break;
 
+              // Operation Mode
               case 5:
-                
+                DcomMbLt.op_mode = (uint16_t) (tempint);
+                #ifdef DCOM_LT_DEBUG
+                  Serial.print("DCOM: 5 - Operation Mode");
+                  Serial.println(DcomMbLt.op_mode, DEC);
+                #endif  
                 break;
 
+              // Leaving Water Temperature pre PHE
               case 6:
-                
+                DcomMbLt.leaving_water_PHE_temp = (uint16_t) (tempint);
+                #ifdef DCOM_LT_DEBUG
+                  Serial.print("DCOM: 6 - Leaving Water Temperature pre PHE");
+                  Serial.println(DcomMbLt.leaving_water_PHE_temp, DEC);
+                #endif  
                 break;
 
+              // Liquid Refrigerant Temperature
               case 7:
-                
+                DcomMbLt.liquid_refrig_temp = (uint16_t) (tempint);
+                #ifdef DCOM_LT_DEBUG
+                  Serial.print("DCOM: 7 - Liquid Refrigerant Temperature");
+                  Serial.println(DcomMbLt.liquid_refrig_temp, DEC);
+                #endif  
                 break;
 
+              // Flow Rate
               case 8:
-                
+                DcomMbLt.flow_rate = (uint16_t) (tempint);
+                #ifdef DCOM_LT_DEBUG
+                  Serial.print("DCOM: 8 - Flow Rate");
+                  Serial.println(DcomMbLt.flow_rate, DEC);
+                #endif  
                 break;
 
+              // Remocon room temperature
               case 9:
                 
                 break;
 
+              // Space Heating/Cooling On/Off
               case 10:
                 
                 break;
 
-              case 11:              
-                Serial.print("DCOM: 11 ");
-                //tempint = (((int) (buffer[3]) << 8) && ((int) (buffer[4]) & 0x00FF));
-                DcomMbLt.leaving_water_PHE_temp = (float) tempint;
-
-                Serial.println(DcomMbLt.leaving_water_PHE_temp, DEC);
+              // Circulation Pump Running
+              case 11:     
+                DcomMbLt.circ_pump_run = (uint16_t) (tempint);
+                #ifdef DCOM_LT_DEBUG
+                  Serial.print("DCOM: 11 - Circulation Pump Running");
+                  Serial.println(DcomMbLt.circ_pump_run, DEC);
+                #endif       
                 break;
 
+              // Compressor Run
               case 12:
                 
                 break;
 
+              // Disinfection Operation
               case 13:
                 
                 break;
 
+              // Defrost/Startup
               case 14:
                 
                 break;
 
+              // DHW Reheat On/Off
               case 15:
                 
                 break;
 
+              // Booster Heater Run
               case 16:
                 
                 break;
 
-              case 17:
-                
+              // // Unit Error Code
+              // case 17:                
+              //   break;
+
+              // // Leaving Water Temperature pre BUH
+              // case 18:                
+              //   break;
+
+              // // Unit Error Sub Code
+              // case 19:
+              //   break;
+
+              // Return Water Temperature
+              case 17:                            
+                DcomMbLt.return_water_temp = (float) tempint;
+                #ifdef DCOM_LT_DEBUG
+                  Serial.print("DCOM: 17 - Return Water Temperature ");
+                  Serial.println(DcomMbLt.return_water_temp, DEC);
+                #endif   
                 break;
 
-              case 18:
-                
+              // Domestic Hot Water Temperature
+              case 18: 
+                DcomMbLt.dom_hot_water_temp = (float) tempint;
+                #ifdef DCOM_LT_DEBUG
+                  Serial.print("DCOM: 18 - Domestic Hot Water Temperature ");
+                  Serial.println(DcomMbLt.dom_hot_water_temp, DEC);
+                #endif  
                 break;
 
+              // Outside Air Temperature
               case 19:
-                Serial.print("DCOM: 19 ");              
-                //DcomMbLt.return_water_temp = (float) tempint;
-                #warning just for test
-                DcomMbLt.return_water_temp = 12.5;
-                Serial.println(DcomMbLt.return_water_temp, DEC);
-                break;
-
-              case 20:
-                
-                break;
-
-              case 21:
-                Serial.print("DCOM: 21 ");              
                 DcomMbLt.outside_air_temp = (float) tempint;
-                Serial.println(DcomMbLt.outside_air_temp, DEC);
+                #ifdef DCOM_LT_DEBUG
+                  Serial.print("DCOM: 19 - Outside Air Temperature ");
+                  Serial.println(DcomMbLt.outside_air_temp, DEC);
+                #endif   
                 break;
 
               default:
@@ -427,10 +505,12 @@ void DCOMEvery100ms(void)
     } // end data ready
 
 
+    // Send target values to DCOM module
     // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     if (DcomMbLt.send_active) {
       
       if(0 == DcomMbLt.send_retry || found) {
+        bool sendsome = false;
         
         DcomMbLt.send_retry = 5;
         
@@ -441,73 +521,105 @@ void DCOMEvery100ms(void)
                 
         // fetch data
         switch(DcomMbLt.send_state) {
-          case 0:   // Leaving Water Main Heating Setpoint
-                    sendbuf[3] = 1;                                         // adress LSB
-                    sendbuf[4] = 0x00;                                      // data Hi
-                    sendbuf[5] = (uint8_t) DcomMbLt.target_leavingwaterheattemp;     // data Lo
-                    break;
 
-          case 1:   // Operation mode
-                    sendbuf[3] = 3;                                         // adress LSB
-                    sendbuf[4] = 0x00;                                      // data Hi
-                    sendbuf[5] = (uint8_t) DcomMbLt.target_opmode;                   // data Lo
-                    break;
+          // Leaving Water Main Heating Setpoint
+          // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+          case 0:   if (DcomMbLt.target_leavingwaterheattemp != DcomMbLtMem.target_leavingwaterheattemp) {
+                      DcomMbLtMem.target_leavingwaterheattemp = DcomMbLt.target_leavingwaterheattemp;
+                      sendbuf[3] = 1;                                         // adress LSB
+                      sendbuf[4] = 0x00;                                      // data Hi
+                      sendbuf[5] = (uint8_t) DcomMbLt.target_leavingwaterheattemp;  // data Lo
+                      sendsome = true;
+                      break;
+                    }
+                    else DcomMbLt.send_state++;         // else go on to next entry     
 
-          case 2:   // Quiet Mode Operation
-                    sendbuf[3] = 9;                                         // adress LSB
-                    sendbuf[4] = 0x00;                                      // data Hi
-                    sendbuf[5] = (uint8_t) DcomMbLt.target_quietmode;                // data Lo
-                    break;
+          // Operation mode
+          // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+          case 1:   if (DcomMbLt.target_opmode != DcomMbLtMem.target_opmode) {
+                      DcomMbLtMem.target_opmode = DcomMbLt.target_opmode;
+                      sendbuf[3] = 3;                                         // adress LSB
+                      sendbuf[4] = 0x00;                                      // data Hi
+                      sendbuf[5] = (uint8_t) DcomMbLt.target_opmode;          // data Lo
+                      sendsome = true;
+                      break;
+                    }
+                    else DcomMbLt.send_state++;         // else go on to next entry   
 
-          case 3:   // DHW Booster Mode On/Off
-                    sendbuf[3] = 13;                                        // adress LSB
-                    sendbuf[4] = 0x00;                                      // data Hi
-                    sendbuf[5] = (uint8_t) DcomMbLt.target_dhwbooster;               // data Lo
-                    break;
-          
-          case 4:   //DcomMbLt.send_state = 0; 
+          // Quiet Mode Operation
+          // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+          case 2:   if (DcomMbLt.target_quietmode != DcomMbLtMem.target_quietmode) {
+                      DcomMbLtMem.target_quietmode = DcomMbLt.target_quietmode;
+                      sendbuf[3] = 9;                                         // adress LSB
+                      sendbuf[4] = 0x00;                                      // data Hi
+                      sendbuf[5] = (uint8_t) DcomMbLt.target_quietmode;       // data Lo
+                      sendsome = true;
+                      break;
+                    }
+                    else DcomMbLt.send_state++;         // else go on to next entry  
+
+          // DHW Booster Mode On/Off
+          // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+          case 3:   if (DcomMbLt.target_dhwbooster != DcomMbLtMem.target_dhwbooster) {
+                      DcomMbLtMem.target_dhwbooster = DcomMbLt.target_dhwbooster;
+                      sendbuf[3] = 13;                                        // adress LSB
+                      sendbuf[4] = 0x00;                                      // data Hi
+                      sendbuf[5] = (uint8_t) DcomMbLt.target_dhwbooster;      // data Lo
+                      sendsome = true;
+                      break;
+                    }
+                    else DcomMbLt.send_state++;         // else go on to next entry
+
+          // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+          case 4:   //DcomMbLt.send_state = 0;
+                    //DcomMbLt.send_state++;
+                    Serial.println("DCOM: Switch to measurement values");
+                    DcomMbLt.send_state = 0;
+                    DcomMbLt.send_active = 0;
+                    DcomMbLt.recv_active = 1;
+                    DcomMbLt.send_retry = 0;
                     break;
 
           default:  //DcomMbLt.send_state = 0; 
                     break;
         }
 
-        // end modbus message
-        crc = MBCalculateCRC(&sendbuf[0], 6);     // calculate CRC
-            
-        sendbuf[6] = (uint8_t) (0x00FF & crc);    // CRC LSB
-        sendbuf[7] = (uint8_t) (crc >> 8);        // CRC MSB
+        if (sendsome) {
+          // end modbus message
+          crc = MBCalculateCRC(&sendbuf[0], 6);     // calculate CRC
+              
+          sendbuf[6] = (uint8_t) (0x00FF & crc);    // CRC LSB
+          sendbuf[7] = (uint8_t) (crc >> 8);        // CRC MSB
 
-        DcomSwSerial.write(&sendbuf[0],8);
-        DcomMbLt.writebuffer[0] = sendbuf[2];
-        DcomMbLt.writebuffer[1] = sendbuf[3];
-        DcomMbLt.writebuffer[2] = sendbuf[4];
-        DcomMbLt.writebuffer[3] = sendbuf[5];
+          DcomSwSerial.write(&sendbuf[0],8);
+          DcomMbLt.writebuffer[0] = sendbuf[2];
+          DcomMbLt.writebuffer[1] = sendbuf[3];
+          DcomMbLt.writebuffer[2] = sendbuf[4];
+          DcomMbLt.writebuffer[3] = sendbuf[5];
 
-        #ifdef DCOM_LT_DEBUG
-          Serial.print("DCOM TX hold: ");
-          for (uint16_t y = 0;y < 8;y++) {
-            Serial.print(sendbuf[y], HEX);
-            Serial.print(", ");
-          }
-          Serial.println("");
-        #endif
+          #ifdef DCOM_LT_DEBUG
+            Serial.print("DCOM TX hold: ");
+            for (uint16_t y = 0;y < 8;y++) {
+              Serial.print(sendbuf[y], HEX);
+              Serial.print(", ");
+            }
+            Serial.println("");
+          #endif
+        }
 
       } else {
         DcomMbLt.send_retry--;
       }
     }
-    
+
+    // Request measurement values to DCOM module
     // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     else if (DcomMbLt.recv_active) {
       Serial.print("send_retry "); Serial.println(DcomMbLt.send_retry, DEC);
       Serial.print("read state "); Serial.println(DcomMbLt.read_state, DEC);
       if(0 == DcomMbLt.send_retry || found) {
-        //DcomMbLt.recv_active = 1;
 
         DcomMbLt.send_retry = 5;        
-
-        //uint8_t sendbuf[10];
 
         // construct request
         sendbuf[0] = DCOM_LT_MB_ADDR;
@@ -548,79 +660,6 @@ void DCOMEvery100ms(void)
 
 }
 
-// send routine
-void DCOMEvery250ms(void)
-{
-  uint8_t sendbuf[10];
-  uint16_t crc;
-
-  if (DCOMInit) {
-    if (DcomMbLt.send_active) {
-      //DcomMbLt.send_active = 1;
-
-      // construct message
-      sendbuf[0] = DCOM_LT_MB_ADDR;
-      sendbuf[1] = DCOM_MODBUS_HOLD_WRITE_REG;   // write single holding register
-      sendbuf[2] = 0;                            // adress MSB
-      
-        
-      // fetch data
-      switch(DcomMbLt.send_state) {
-        case 0:   // Leaving Water Main Heating Setpoint
-                  sendbuf[3] = 1;                                         // adress LSB
-                  sendbuf[4] = 0x00;                                      // data Hi
-                  sendbuf[5] = (uint8_t) DcomMbLt.target_leavingwaterheattemp;     // data Lo
-                  break;
-
-        case 1:   // Operation mode
-                  sendbuf[3] = 3;                                         // adress LSB
-                  sendbuf[4] = 0x00;                                      // data Hi
-                  sendbuf[5] = (uint8_t) DcomMbLt.target_opmode;                   // data Lo
-                  break;
-
-        case 2:   // Quiet Mode Operation
-                  sendbuf[3] = 9;                                         // adress LSB
-                  sendbuf[4] = 0x00;                                      // data Hi
-                  sendbuf[5] = (uint8_t) DcomMbLt.target_quietmode;                // data Lo
-                  break;
-
-        case 3:   // DHW Booster Mode On/Off
-                  sendbuf[3] = 13;                                        // adress LSB
-                  sendbuf[4] = 0x00;                                      // data Hi
-                  sendbuf[5] = (uint8_t) DcomMbLt.target_dhwbooster;               // data Lo
-                  break;
-        
-        case 4:   //DcomMbLt.send_state = 0; 
-                  break;
-
-        default:  //DcomMbLt.send_state = 0; 
-                  break;
-      }
-
-      //DcomMbLt.send_state++;
-
-      // end modbus message
-      crc = MBCalculateCRC(&sendbuf[0], 6);     // calculate CRC
-          
-      sendbuf[6] = (uint8_t) (0x00FF & crc);    // CRC LSB
-      sendbuf[7] = (uint8_t) (crc >> 8);        // CRC MSB
-
-    #ifdef DCOM_LT_DEBUG
-      Serial.print("DCOM TX Set: ");
-      for (uint16_t y = 0;y < 8;y++) {
-        Serial.print(sendbuf[y], HEX);
-        Serial.print(", ");
-      }
-      Serial.println("");
-    #endif
-
-      DcomSwSerial.write(&sendbuf[0],8);   
-      
-
-
-    }
-  }
-}
 
 void DCOMSnsInit(void)
 {
@@ -667,11 +706,11 @@ bool Xdrv134(uint32_t function)
 
   switch (function) {
     case FUNC_EVERY_100_MSECOND:
-      //DCOMEvery100ms();
+      DCOMEvery100ms();
       break;
     case FUNC_EVERY_250_MSECOND:
       //DCOMEvery250ms();
-      DCOMEvery100ms();
+      //DCOMEvery100ms();
       break;
     case FUNC_INIT:
       DCOMSnsInit();

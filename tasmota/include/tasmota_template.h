@@ -82,6 +82,7 @@ enum UserSelectablePins {
   GPIO_OUTPUT_HI, GPIO_OUTPUT_LO,      // Fixed output state
   GPIO_DDS2382_TX, GPIO_DDS2382_RX,    // DDS2382 Serial interface
   GPIO_DDSU666_TX, GPIO_DDSU666_RX,    // DDSU666 Serial interface
+  GPIO_DTSU666H_TX, GPIO_DTSU666H_RX,  // DTSU666-H Serial interface
   GPIO_SM2135_CLK, GPIO_SM2135_DAT,    // SM2135 PWM controller
   GPIO_DEEPSLEEP,                      // Kill switch for deepsleep
   GPIO_EXS_ENABLE,                     // EXS MCU Enable
@@ -214,6 +215,7 @@ enum UserSelectablePins {
   GPIO_DINGTIAN_OE,                     // New version of Dingtian relay board where PL is not shared with OE
   GPIO_DDSU666_LISTEN_RX,               // DDSU666 Serial interface listen mode
   GPIO_DCOM_MB_LT_TX, GPIO_DCOM_MB_LT_RX, GPIO_DCOM_MB_LT_ENA, // DCOM MB LT Serial interface
+  GPIO_DEYE_METER_TX, GPIO_DEYE_METER_RX, GPIO_DEYE_METER_ENA, // DEYE METER Serial interface
   GPIO_BURST_CONTROL_PWM,               // BURST CONTROL PWM Pin
   GPIO_SENSOR_END };
 
@@ -343,6 +345,7 @@ const char kSensorNames[] PROGMEM =
   D_SENSOR_OUTPUT_HI "|" D_SENSOR_OUTPUT_LO "|"
   D_SENSOR_DDS2382_TX "|" D_SENSOR_DDS2382_RX "|"
   D_SENSOR_DDSU666_TX "|" D_SENSOR_DDSU666_RX "|"
+  D_SENSOR_DTSU666H_TX "|" D_SENSOR_DTSU666H_RX "|"
   D_SENSOR_SM2135_CLK "|" D_SENSOR_SM2135_DAT "|"
   D_SENSOR_DEEPSLEEP "|" D_SENSOR_EXS_ENABLE "|"
   D_SENSOR_CLIENT_TX "|" D_SENSOR_CLIENT_RX "|" D_SENSOR_CLIENT_RESET "|" D_SENSOR_CLIENT_RESET "_i|"
@@ -475,9 +478,12 @@ const char kSensorNames[] PROGMEM =
   D_SENSOR_GM861_TX "|" D_SENSOR_GM861_RX "|"
   D_GPIO_DINGTIAN_OE "|"
   D_SENSOR_DDSU666_LISTEN_RX "|"
-  D_SENSOR_DCOM_MB_LT_TX   "|"
-  D_SENSOR_DCOM_MB_LT_RX    "|"
-  D_SENSOR_DCOM_MB_LT_ENA    "|"
+  D_SENSOR_DCOM_MB_LT_TX "|"
+  D_SENSOR_DCOM_MB_LT_RX "|"
+  D_SENSOR_DCOM_MB_LT_ENA "|"
+  D_SENSOR_DEYE_METER_TX "|"
+  D_SENSOR_DEYE_METER_RX "|"
+  D_SENSOR_DEYE_METER_ENA "|"
   D_SENSOR_BURST_CONTROL_PWM "|"
   ;
 
@@ -902,14 +908,23 @@ const uint16_t kGpioNiceList[] PROGMEM = {
   AGPIO(GPIO_DDSU666_TX),               // DDSU666 Serial interface
   AGPIO(GPIO_DDSU666_RX),               // DDSU666 Serial interface
 #endif  // USE_DDSU666
+#ifdef USE_DTSU666_H
+  AGPIO(GPIO_DTSU666H_TX),              // DTSU666-H Serial interface
+  AGPIO(GPIO_DTSU666H_RX),              // DTSU666-H Serial interface
+#endif  // USE_DTSU666_H
 #ifdef USE_DDSU666_LISTEN  
   AGPIO(GPIO_DDSU666_LISTEN_RX),        // DDSU666 Serial interface
 #endif  // USE_DDSU666_LISTEN
 #ifdef USE_DCOM_LT_MB  
   AGPIO(GPIO_DCOM_MB_LT_TX),            // DCOM MB LT Serial interface
   AGPIO(GPIO_DCOM_MB_LT_RX),            // DCOM MB LT Serial interface
-  AGPIO(GPIO_DCOM_MB_LT_ENA),            // DCOM MB LT Serial interface
+  AGPIO(GPIO_DCOM_MB_LT_ENA),           // DCOM MB LT Serial interface
 #endif  // USE_DCOM_LT_MB
+#ifdef USE_DEYE_METER  
+  AGPIO(GPIO_DEYE_METER_TX),            // DEYE METER Serial interface
+  AGPIO(GPIO_DEYE_METER_RX),            // DEYE METER Serial interface
+  AGPIO(GPIO_DEYE_METER_ENA),           // DEYE METER Serial interface
+#endif  // USE_DEYE_METER
 #ifdef USE_BURST_CONTROL
   AGPIO(GPIO_BURST_CONTROL_PWM),        // BURST CONTROL PWM Pin
 #endif  // USE_BURST_CONTROL

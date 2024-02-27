@@ -90,6 +90,9 @@ Examples :
 
 
 // PV heater test
+#define USE_ENERGY_SENSOR
+#define USE_DTSU666_H
+#define USE_DEYE_METER
 #define USE_SPI
 #define USE_RULES
 #define USE_BURST_CONTROL
@@ -102,6 +105,7 @@ Examples :
 #define USE_I2C
 #define USE_DISPLAY_LCD
 #define USE_DISPLAY
+
 
 #undef USE_INFLUXDB
 #undef USE_HIH6
@@ -122,8 +126,10 @@ Examples :
 #undef USE_AUTOCONF    
 #undef USE_MCP23XXX_DRV  
 #undef USE_MCP230xx
-
-
+#undef USE_BL09XX 
+#undef USE_RC_SWITCH
+#undef USE_RF_SENSOR
+#undef USE_SONOFF_IFAN
 
 
 
