@@ -528,6 +528,9 @@
 #define D_ENERGY_TODAY "Energie heute"
 #define D_ENERGY_YESTERDAY "Energie gestern"
 #define D_ENERGY_TOTAL "Energie gesamt"
+#define D_ENERGY_IMPORT_TODAY "E. Import heute"
+#define D_ENERGY_EXPORT_TODAY "E. Export heute"
+
 
 // xdrv_27_shutter.ino
 #define D_OPEN "Öffnen"

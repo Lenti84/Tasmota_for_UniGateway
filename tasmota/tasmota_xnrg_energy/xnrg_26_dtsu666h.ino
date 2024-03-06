@@ -110,12 +110,20 @@ struct DTSU666H {
   uint8_t read_state = 0;
   uint8_t send_retry = 0;
   uint8_t init = 0;
+  unsigned long timestamp_prev = 0;
+  unsigned long timestamp_new = 0;
+  float energy_import = 0;
+  float energy_export = 0;
 } Dtsu666H;
 
 /*********************************************************************************************/
 
 void Dtsu666HEvery200ms(void)
 {  
+  unsigned long timedelta;
+  float powersum;
+  int32_t deca_microWh;
+
   if (Dtsu666H.init) {
     bool data_ready = Dtsu666HModbus->ReceiveReady();
 
@@ -130,9 +138,9 @@ void Dtsu666HEvery200ms(void)
 
       if (error) {
         AddLog(LOG_LEVEL_DEBUG, PSTR("DTSU666-H: recv error %d"), error);
-        Serial.println(F("DTSU666-H: recv error"));
+        //Serial.println(F("DTSU666-H: recv error"));
       } else {
-        AddLog(LOG_LEVEL_DEBUG, PSTR("DTSU666-H: recv okay"));
+        //AddLog(LOG_LEVEL_DEBUG_MORE, PSTR("DTSU666-H: recv okay"));
         Energy->data_valid[0] = 0;
 
         float value;
@@ -276,6 +284,30 @@ void Dtsu666HEvery200ms(void)
                     ((uint8_t*)&value)[0] = buffer[50];
                     Energy->apparent_power[2] = value * 1;     // -196.3 VA - phase C
 
+
+                    timedelta = Dtsu666H.timestamp_new - Dtsu666H.timestamp_prev;
+                    powersum = Energy->active_power[0] + Energy->active_power[1] + Energy->active_power[2];
+                    //powersum = powersum * (float) timedelta / 3600000000.0;
+
+                    deca_microWh = (int32_t) (powersum * (float) timedelta / 36.0);
+                    Energy->kWhtoday_delta[0] += deca_microWh;      
+                    Energy->kWhtoday_delta[1] = 0;
+                    Energy->kWhtoday_delta[2] = 0;
+                    //Energy->export_active[0] = 0;              
+
+                    // if (powersum >= 0) {
+                    //   Dtsu666H.energy_import += powersum;
+                    // }
+                    // else {
+                    //   Dtsu666H.energy_export += powersum;
+                    // }
+                    // Energy->import_active[0] = Dtsu666H.energy_import/3;
+                    // Energy->import_active[1] = Dtsu666H.energy_import/3;
+                    // Energy->import_active[2] = Dtsu666H.energy_import/3;
+                    // Energy->export_active[0] = Dtsu666H.energy_export/3;         
+                    // Energy->export_active[1] = Dtsu666H.energy_export/3;         
+                    // Energy->export_active[2] = Dtsu666H.energy_export/3;         
+
                     break;
 
           case 2:   //Energy->power_factor[0] = value;      // 0.99 - power factor mean
@@ -317,18 +349,18 @@ void Dtsu666HEvery200ms(void)
                     break;
 
           case 3:   // import
-                    Energy->import_active[0] = value/3;         // 478.492 kWh
-                    Energy->import_active[1] = value/3;         // 478.492 kWh
-                    Energy->import_active[2] = value/3;         // 478.492 kWh
+                    //Energy->import_active[0] = value/3;         // 478.492 kWh
+                    //Energy->import_active[1] = value/3;         // 478.492 kWh
+                    //Energy->import_active[2] = value/3;         // 478.492 kWh
 
                     // export
                     ((uint8_t*)&value)[3] = buffer[23];         // Get float values
                     ((uint8_t*)&value)[2] = buffer[24];
                     ((uint8_t*)&value)[1] = buffer[25];
                     ((uint8_t*)&value)[0] = buffer[26];
-                    Energy->export_active[0] = value/3;         // 6.216 kWh
-                    Energy->export_active[1] = value/3;         // 6.216 kWh
-                    Energy->export_active[2] = value/3;         // 6.216 kWh
+                    //Energy->export_active[0] = value/3;         // 6.216 kWh
+                    //Energy->export_active[1] = value/3;         // 6.216 kWh
+                    //Energy->export_active[2] = value/3;         // 6.216 kWh
 
                     break;
           
@@ -344,8 +376,13 @@ void Dtsu666HEvery200ms(void)
         EnergyUpdateTotal();  // test 
       }
 
+      if (Dtsu666H.read_state == 1) {
+        Dtsu666H.timestamp_prev = Dtsu666H.timestamp_new;
+        Dtsu666H.timestamp_new = millis();
+      }
+
       Dtsu666HModbus->Send(DTSU666H_ADDR, 0x04, Dtsu666H_start_addresses[Dtsu666H.read_state][0], Dtsu666H_start_addresses[Dtsu666H.read_state][1]);  
-      AddLog(LOG_LEVEL_DEBUG, PSTR("DTSU666-H: Send request %d"), Dtsu666H.read_state);
+      //AddLog(LOG_LEVEL_DEBUG, PSTR("DTSU666-H: Send request %d"), Dtsu666H.read_state);
       //Serial.println(F("DTSU666-H: Send request"));
     } else {
       Dtsu666H.send_retry--;
@@ -357,16 +394,16 @@ void Dtsu666HEvery200ms(void)
 void Dtsu666HSnsInit(void)
 {
   if (PinUsed(GPIO_DTSU666H_RX) && PinUsed(GPIO_DTSU666H_TX) && PinUsed(GPIO_NRG_MBS_TX_ENA)) {
-    Serial.println(F("DTSU666-H: SnsInit"));
+    //Serial.println(F("DTSU666-H: SnsInit"));
 
     Dtsu666HModbus = new TasmotaModbus(Pin(GPIO_DTSU666H_RX), Pin(GPIO_DTSU666H_TX), Pin(GPIO_NRG_MBS_TX_ENA));
     uint8_t result = Dtsu666HModbus->Begin(DTSU666H_SPEED);
     if (result) {
-      Serial.print(F("DTSU666-H: init - "));   Serial.println(result, DEC);
+      //Serial.print(F("DTSU666-H: init - "));   Serial.println(result, DEC);
       if (1 == result) { 
         //ClaimSerial(); 
         AddLog(LOG_LEVEL_INFO, PSTR("DTSU666-H: init okay %d"), result);
-        Serial.println(F("DTSU666-H: init okay 1"));
+        //Serial.println(F("DTSU666-H: init okay 1"));
         Dtsu666H.init = 1;
         
         // Energy->phase_count = 3;
@@ -383,11 +420,11 @@ void Dtsu666HSnsInit(void)
       }
       else {
         TasmotaGlobal.energy_driver = ENERGY_NONE;
-        Serial.print(F("DTSU666-H: init error 1"));
+        //Serial.print(F("DTSU666-H: init error 1"));
       }
     } else {
       TasmotaGlobal.energy_driver = ENERGY_NONE;
-      Serial.print(F("DTSU666-H: init error"));
+      //Serial.print(F("DTSU666-H: init error"));
     }
   }
 }
@@ -395,12 +432,12 @@ void Dtsu666HSnsInit(void)
 void Dtsu666HDrvInit(void)
 {
   if (PinUsed(GPIO_DTSU666H_RX) && PinUsed(GPIO_DTSU666H_TX) && PinUsed(GPIO_NRG_MBS_TX_ENA)) {
-    Serial.println(F("DTSU666-H: DrvInit"));
+    //Serial.println(F("DTSU666-H: DrvInit"));
     TasmotaGlobal.energy_driver = XNRG_26;
     
     Energy->phase_count = 3;
     Energy->frequency_common = true;             // Use common frequency
-    Energy->local_energy_active_export = false; 
+    Energy->local_energy_active_export = true; 
   }
 }
 

@@ -164,8 +164,8 @@ typedef struct {
   float daily_kWh[ENERGY_MAX_PHASES];           // 123.123 kWh
   float energy_today_offset_kWh[ENERGY_MAX_PHASES];  // 123.12312 kWh = Energy->daily
   float period_kWh[ENERGY_MAX_PHASES];          // 123.12312 kWh = Energy->daily
-  float daily_sum_import_balanced;              // 123.123 kWh
-  float daily_sum_export_balanced;              // 123.123 kWh
+  float daily_sum_import_balanced = 0.0;              // 123.123 kWh
+  float daily_sum_export_balanced = 0.0;              // 123.123 kWh
 
   uint16_t power_history[ENERGY_MAX_PHASES][3];
   uint16_t mplh_counter;
@@ -511,7 +511,8 @@ void EnergyUpdateToday(void) {
       Energy->kWhtoday_delta[i] -= (delta * 1000);
       Energy->kWhtoday[i] += delta;
       if (delta < 0) {     // Export energy
-        RtcEnergySettings.energy_export_kWh[i] += ((float)(delta / 100) *-1) / 1000;
+        //RtcEnergySettings.energy_export_kWh[i] += ((float)(delta / 100) *-1) / 1000;
+        RtcEnergySettings.energy_export_kWh[i] += ((float)(delta) *-1 / 100) / 1000;
       }
     }
 
@@ -1716,6 +1717,11 @@ void EnergyShow(bool json) {
       if (!isnan(Energy->export_active[0])) {
         uint32_t single = (!isnan(Energy->export_active[1]) && !isnan(Energy->export_active[2])) ? 2 : 1;
         WSContentSend_PD(HTTP_SNS_EXPORT_ACTIVE, WebEnergyFmt(Energy->export_active, Settings->flag2.energy_resolution, single));
+      }
+      #warning added
+      if (1) {
+        WSContentSend_PD(HTTP_SNS_ENERGY_IMP_TODAY, WebEnergyFmt(&Energy->daily_sum_import_balanced, Settings->flag2.energy_resolution, 1));
+        WSContentSend_PD(HTTP_SNS_ENERGY_EXP_TODAY, WebEnergyFmt(&Energy->daily_sum_export_balanced, Settings->flag2.energy_resolution, 1));
       }
 
       XnrgCall(FUNC_WEB_COL_SENSOR);

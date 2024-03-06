@@ -28,7 +28,7 @@
 #include <RingBuf.h>
 RingBuf<uint8_t, 1000> DeyeRingBuffer;
 
-#define DEYE_METER_DEBUG        // comment to disable debug messages over uart
+//#define DEYE_METER_DEBUG        // comment to disable debug messages over uart
 
 #define XDRV_132                132
 
@@ -158,7 +158,7 @@ void DeyeMeterEvery100ms(void)
               // check specific adresses and length
               if(DeyeRingBuffer[x+2] == Deye_power_match[0] && DeyeRingBuffer[x+3] == Deye_power_match[1]) {      // adress 
                 if(x > 0 && bufsize == 8) {
-                  Serial.println("DEYE METER: break 1");
+                  //Serial.println("DEYE METER: break 1");
                   DeyeRingBuffer.pop(voidbuf);  // remove one byte
                   break;    // try new evaluation with more data
                 }
@@ -171,7 +171,7 @@ void DeyeMeterEvery100ms(void)
 
               else if(DeyeRingBuffer[x+2] == Deye_energy_match[0] && DeyeRingBuffer[x+3] == Deye_energy_match[1]) {     // adress 
                 if(x > 0 && bufsize == 8) {
-                  Serial.println("DEYE METER: break 2");
+                  //Serial.println("DEYE METER: break 2");
                   DeyeRingBuffer.pop(voidbuf);  // remove one byte
                   break;    // try new evaluation with more data
                 }
@@ -201,8 +201,8 @@ void DeyeMeterEvery100ms(void)
                 }
                 else {
                   found = 0;
-                  Serial.println("DEYE METER: crc req incorrect");
-                  Serial.print("DEYE METER: bufsize "); Serial.println(bufsize, DEC);
+                  //Serial.println("DEYE METER: crc req incorrect");
+                  //Serial.print("DEYE METER: bufsize "); Serial.println(bufsize, DEC);
                   #ifdef DEYE_METER_DEBUG
                     Serial.print("DEYE METER: RX: ");
                     for (uint16_t y = 0;y < bufsize;y++) {
@@ -219,7 +219,7 @@ void DeyeMeterEvery100ms(void)
                 }
               }
               else {
-                Serial.print("DEYE METER: Match 2 fail");
+                //Serial.print("DEYE METER: Match 2 fail");
               }
             
           }
@@ -234,7 +234,7 @@ void DeyeMeterEvery100ms(void)
     if (resetcnt > 50) {
       resetcnt = 0;
       DeyeRingBuffer.clear();
-      Serial.println("DEYE METER: reset ringbuffer");
+      //Serial.println("DEYE METER: reset ringbuffer");
     }
 
     if(found) {
@@ -247,7 +247,7 @@ void DeyeMeterEvery100ms(void)
 
       DeyeMeter.conn_ready = 100;
 
-      Serial.println("DEYE METER: found data packet");
+      //Serial.println("DEYE METER: found data packet");
             
       // construct message
       sendbuf[0] = Deye_modbus_match[0];
@@ -340,7 +340,7 @@ void DeyeMeterEvery100ms(void)
 void DeyeMeterSnsInit(void)
 {
   if (PinUsed(GPIO_DEYE_METER_TX) && PinUsed(GPIO_DEYE_METER_RX) && PinUsed(GPIO_DEYE_METER_ENA)) {
-    Serial.println(F("DEYE METER: SnsInit"));  
+    //Serial.println(F("DEYE METER: SnsInit"));  
 
     DeyeMeterSwSerial.begin(DEYE_METER_SPEED, SWSERIAL_8N1, Pin(GPIO_DEYE_METER_RX), Pin(GPIO_DEYE_METER_TX));
     DeyeMeterSwSerial.setTransmitEnablePin(Pin(GPIO_DEYE_METER_ENA));
@@ -349,16 +349,17 @@ void DeyeMeterSnsInit(void)
 
     if (result) {
       if (2 == result) { 
-        AddLog(LOG_LEVEL_INFO, PSTR("DEYE METER: init okay%d"), result);
-        Serial.print(F("DEYE METER: init okay - "));   Serial.println(result, DEC);
+        AddLog(LOG_LEVEL_INFO, PSTR("DEYE METER: init okay %d"), result);
+        //Serial.print(F("DEYE METER: init okay - "));   Serial.println(result, DEC);
         DeyeMeter.init = 1;
       }
       else {
-        Serial.print(F("DEYE METER: init not okay - "));   Serial.println(result, DEC);
+        AddLog(LOG_LEVEL_INFO, PSTR("DEYE METER: init not okay %d"), result);
+        //Serial.print(F("DEYE METER: init not okay - "));   Serial.println(result, DEC);
       }
     } else {
       AddLog(LOG_LEVEL_INFO, PSTR("DEYE METER: error init %d"), result);  
-      Serial.println(F("DEYE METER: init error"));  
+      //Serial.println(F("DEYE METER: init error"));  
     }
   }
 }
@@ -366,7 +367,7 @@ void DeyeMeterSnsInit(void)
 void DeyeMeterDrvInit(void)
 {  
   if (PinUsed(GPIO_DEYE_METER_TX) && PinUsed(GPIO_DEYE_METER_RX) && PinUsed(GPIO_DEYE_METER_ENA)) {
-    Serial.println(F("DEYE METER: DrvInit"));  
+    //Serial.println(F("DEYE METER: DrvInit"));  
   
   }
 }
