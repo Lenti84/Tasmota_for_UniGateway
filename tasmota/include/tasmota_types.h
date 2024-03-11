@@ -841,7 +841,11 @@ typedef struct {
 
   uint8_t       modbus_sconfig;            // F62
 
-  uint8_t       free_f63[13];              // F63 - Decrement if adding new Setting variables just above and below
+  uint8_t       free_f63[10];              // F63 - Decrement if adding new Setting variables just above and below
+  
+  uint8_t       UvrCanSendId;              // F6D
+  uint8_t       UvrCanRecvId;              // F6E
+  uint8_t       UvrCanDataset;             // F6F
 
   // Only 32 bit boundary variables below
   uint32_t      touch_threshold;           // F70

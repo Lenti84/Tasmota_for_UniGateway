@@ -23,12 +23,13 @@
  *
 \*********************************************************************************************/
 
-#define DCOM_LT_DEBUG       // comment to disable debug messages over uart
+//#define DCOM_LT_DEBUG       // comment to disable debug messages over uart
 
 #define XDRV_134             134
 
 
 #define D_DCOM_NAME         "Daikin LT MB"
+#define D_DCOM_INLET_TEMP   "Einlass Temperatur"
 #define D_DCOM_RETURN_TEMP  "Auslass Temperatur"
 #define D_DCOM_COMP_RUN     "Kompressor"
 
@@ -189,18 +190,20 @@ struct DCOM_MB_LT_TARGET_MEMORY {
 
 /*********************************************************************************************/
 
-#ifdef USE_WEBSERVER
-const char HTTP_DRV_DCOM_DATA[] PROGMEM =
-  //"{s}%s " D_VOLTAGE "{m}%s " D_UNIT_VOLT "{e}"
-  //"{s}%s " D_CURRENT "{m}%s " D_UNIT_AMPERE "{e}"
-  "{s}%s " D_DCOM_RETURN_TEMP "{m}%s " D_UNIT_DEGREE D_UNIT_CELSIUS "{e}"
-  "{s}%s " D_DCOM_COMP_RUN "{m}%s {e}";
-#endif  // USE_WEBSERVER
+// #ifdef USE_WEBSERVER
+// const char HTTP_DRV_DCOM_DATA[] PROGMEM =
+//   "{s}%s " D_DCOM_INLET_TEMP "{m}%s " D_UNIT_DEGREE D_UNIT_CELSIUS "{e}"
+//   "{s}%s " D_DCOM_RETURN_TEMP "{m}%s " D_UNIT_DEGREE D_UNIT_CELSIUS "{e}"
+//   "{s}%s " D_DCOM_COMP_RUN "{m}%s {e}";
+// #endif  // USE_WEBSERVER
 
 void DCOMShow(bool json)
 {
   if(DCOMInit) {
     
+    char outletwaterBHU[8];
+    dtostrfd(DcomMbLt.leaving_water_BHU_temp, 1, outletwaterBHU);
+
     char returnwater[8];
     dtostrfd(DcomMbLt.return_water_temp, 1, returnwater);
 
@@ -208,19 +211,34 @@ void DCOMShow(bool json)
     if (DcomMbLt.compressor_run) snprintf_P(comprun, sizeof(comprun), PSTR("%s"), "on");
     else snprintf_P(comprun, sizeof(comprun), PSTR("%s"), "off");
     
-    char name[16];    
-    snprintf_P(name, sizeof(name), PSTR("%s"), D_DCOM_NAME);
+    char outsidetemp[8];
+    dtostrfd(DcomMbLt.outside_air_temp, 1, outsidetemp);
+    
+    char flow[8];
+    dtostrfd(DcomMbLt.flow_rate, 1, flow);
 
-    // if (json) {
-    //   ResponseAppend_P(PSTR(",\"%s\":{\"Id\":%02x,\"" D_JSON_USAGE "\":%s,\"" D_JSON_ACTIVE_POWERUSAGE "\":%s}"),
-    //                    name, 1, heaterpercent, netpower);
+    // char name[16];    
+    // snprintf_P(name, sizeof(name), PSTR("%s"), D_DCOM_NAME);
 
+    if (json) {
+        ResponseAppend_P(PSTR(",\"" D_DCOM_NAME "\":{"));
+        ResponseAppend_P(PSTR("\"" "ToutBHU" "\":%s"), outletwaterBHU);
+        ResponseAppend_P(PSTR(",\"" "Treturn" "\":%s"), returnwater);
+        ResponseAppend_P(PSTR(",\"" "Toutdoor" "\":%s"), outsidetemp);
+        ResponseAppend_P(PSTR(",\"" "Flow" "\":%s"), flow);
+        ResponseAppend_P(PSTR(",\"" "bComp" "\":\"%s\"},"), comprun);
+    }
 #ifdef USE_WEBSERVER
-    //} else {
-      WSContentSend_PD(HTTP_DRV_DCOM_DATA, name, returnwater, name, comprun);
-
+    else {
+      WSContentSend_P(PSTR("Daikin DCOM"));
+      WSContentSend_Temp("Leaving Water BHU", DcomMbLt.leaving_water_BHU_temp);
+      WSContentSend_Temp("Return Water", DcomMbLt.return_water_temp);
+      WSContentSend_Temp("Return Water", DcomMbLt.outside_air_temp);
+      WSContentSend_PD(PSTR("Flow %s l/min{e}]"), flow);
+      WSContentSend_PD(PSTR("Compressor %s{e}"), comprun);
+    }
 #endif  // USE_WEBSERVER
-    //}
+
   }
 }
 
@@ -615,8 +633,11 @@ void DCOMEvery100ms(void)
     // Request measurement values to DCOM module
     // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     else if (DcomMbLt.recv_active) {
-      Serial.print("send_retry "); Serial.println(DcomMbLt.send_retry, DEC);
-      Serial.print("read state "); Serial.println(DcomMbLt.read_state, DEC);
+      #ifdef DCOM_LT_DEBUG
+        Serial.print("send_retry "); Serial.println(DcomMbLt.send_retry, DEC);
+        Serial.print("read state "); Serial.println(DcomMbLt.read_state, DEC);
+      #endif
+
       if(0 == DcomMbLt.send_retry || found) {
 
         DcomMbLt.send_retry = 5;        
@@ -717,6 +738,9 @@ bool Xdrv134(uint32_t function)
       break;
     case FUNC_PRE_INIT:
       DCOMDrvInit();
+      break;
+    case FUNC_JSON_APPEND:
+      DCOMShow(1);
       break;
   #ifdef USE_WEBSERVER
     case FUNC_WEB_SENSOR:
