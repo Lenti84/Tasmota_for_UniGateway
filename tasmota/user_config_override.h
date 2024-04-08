@@ -105,6 +105,7 @@ Examples :
 #define USE_I2C
 #define USE_DISPLAY_LCD
 #define USE_DISPLAY
+#define USE_SDM72_SDM230
 
 
 #undef USE_INFLUXDB

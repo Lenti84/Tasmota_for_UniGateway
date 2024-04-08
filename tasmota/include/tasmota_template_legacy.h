@@ -443,6 +443,8 @@ const uint16_t kGpioConvert[] PROGMEM = {
   AGPIO(GPIO_DEYE_METER_RX),   // Deye Meter Serial interface RS485 Rx
   AGPIO(GPIO_DEYE_METER_ENA),  // Deye Meter Serial interface RS485 Enable
   AGPIO(GPIO_BURST_CONTROL_PWM),     // Burst Control PWM Pin
+  AGPIO(GPIO_SDM72_SDM230_TX),     // SDM72 SDM230 Serial interface
+  AGPIO(GPIO_SDM72_SDM230_RX),     // SDM72 SDM230 Serial interface
   AGPIO(GPIO_SM2135_CLK),     // SM2135 CLOCK
   AGPIO(GPIO_SM2135_DAT),     // SM2135 DATA
   AGPIO(GPIO_DEEPSLEEP),

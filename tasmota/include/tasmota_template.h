@@ -216,6 +216,7 @@ enum UserSelectablePins {
   GPIO_DDSU666_LISTEN_RX,               // DDSU666 Serial interface listen mode
   GPIO_DCOM_MB_LT_TX, GPIO_DCOM_MB_LT_RX, GPIO_DCOM_MB_LT_ENA, // DCOM MB LT Serial interface
   GPIO_DEYE_METER_TX, GPIO_DEYE_METER_RX, GPIO_DEYE_METER_ENA, // DEYE METER Serial interface
+  GPIO_SDM72_SDM230_TX, GPIO_SDM72_SDM230_RX,                  // SDM72 SDM230 Serial interface
   GPIO_BURST_CONTROL_PWM,               // BURST CONTROL PWM Pin
   GPIO_SENSOR_END };
 
@@ -484,6 +485,7 @@ const char kSensorNames[] PROGMEM =
   D_SENSOR_DEYE_METER_TX "|"
   D_SENSOR_DEYE_METER_RX "|"
   D_SENSOR_DEYE_METER_ENA "|"
+  D_SENSOR_SDM72_SDM230_TX "|" D_SENSOR_SDM72_SDM230_RX "|"
   D_SENSOR_BURST_CONTROL_PWM "|"
   ;
 
@@ -925,6 +927,10 @@ const uint16_t kGpioNiceList[] PROGMEM = {
   AGPIO(GPIO_DEYE_METER_RX),            // DEYE METER Serial interface
   AGPIO(GPIO_DEYE_METER_ENA),           // DEYE METER Serial interface
 #endif  // USE_DEYE_METER
+#ifdef USE_SDM230
+  AGPIO(GPIO_SDM72_SDM230_TX),          // SDM72 SDM230 Serial interface
+  AGPIO(GPIO_SDM72_SDM230_RX),          // SDM72 SDM230 Serial interface
+#endif
 #ifdef USE_BURST_CONTROL
   AGPIO(GPIO_BURST_CONTROL_PWM),        // BURST CONTROL PWM Pin
 #endif  // USE_BURST_CONTROL
