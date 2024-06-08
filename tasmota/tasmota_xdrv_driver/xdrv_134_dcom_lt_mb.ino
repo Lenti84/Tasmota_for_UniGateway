@@ -156,8 +156,8 @@ struct DCOM_MB_LT {
   float     room_temp = 0.0;
 
   // holding registers - inputs
-  uint16_t  target_leavingwaterheattemp = 25;     // Leaving Water Main Heating Setpoint
-  uint16_t  target_leavingwatercooltemp = 22;     // Leaving Water Main Cooling Setpoint
+  uint16_t  target_leavingwaterheattemp = 250;    // Leaving Water Main Heating Setpoint
+  uint16_t  target_leavingwatercooltemp = 220;    // Leaving Water Main Cooling Setpoint
   uint16_t  target_opmode = 0;                    // Operation Mode
   uint16_t  target_spaceheatcool = 0;             // Space Heating/Cooling On/Off
   uint16_t  target_roomheatsetp = 12;             // Room Thermostat Control Heating Setpoint
@@ -175,8 +175,8 @@ struct DCOM_MB_LT {
 // memory to identify values changes and only send out when something has changed
 struct DCOM_MB_LT_TARGET_MEMORY {
 // holding registers - inputs
-  uint16_t  target_leavingwaterheattemp = 25;     // Leaving Water Main Heating Setpoint
-  uint16_t  target_leavingwatercooltemp = 22;     // Leaving Water Main Cooling Setpoint
+  uint16_t  target_leavingwaterheattemp = 250;    // Leaving Water Main Heating Setpoint
+  uint16_t  target_leavingwatercooltemp = 220;    // Leaving Water Main Cooling Setpoint
   uint16_t  target_opmode = 0;                    // Operation Mode
   uint16_t  target_spaceheatcool = 0;             // Space Heating/Cooling On/Off
   uint16_t  target_roomheatsetp = 12;             // Room Thermostat Control Heating Setpoint
@@ -253,9 +253,10 @@ void DCOMShow(bool json)
       dtostrfd(DcomMbLt.flow_rate, 2, temp_chr);
       WSContentSend_PD(HTTP_SNS_LPM, "Water", temp_chr);
 
-      if(DcomMbLt.op_mode == 1) WSContentSend_PD("{s}Operation Mode{m}Heating{e}");
+      if(DcomMbLt.op_mode == 0) WSContentSend_PD("{s}Operation Mode{m}off{e}");
+      else if(DcomMbLt.op_mode == 1) WSContentSend_PD("{s}Operation Mode{m}Heating{e}");
       else if(DcomMbLt.op_mode == 2) WSContentSend_PD("{s}Operation Mode{m}Cooling{e}");
-      else WSContentSend_PD("{s}Operation Mode{m}none{e}");
+      else WSContentSend_PD("{s}Operation Mode{m}error{e}");
 
       if(DcomMbLt.circ_pump_run > 0) WSContentSend_PD("{s}Circulation Pump{m}on{e}");
       else WSContentSend_PD("{s}Circulation Pump{m}off{e}");
@@ -280,6 +281,21 @@ void DCOMShow(bool json)
 
       if(DcomMbLt.valve_3way > 0) WSContentSend_PD("{s}3-Way Valve{m}DHW{e}");
       else WSContentSend_PD("{s}3-Way Valve{m}Space Heating{e}");     
+
+      // Target Values
+      WSContentSend_P(PSTR("{s}Daikin DCOM target values{m}{e}"));
+
+      WSContentSend_Temp("Target Leaving Water Heating", (float) (DcomMbLt.target_leavingwaterheattemp)/10);
+      if(DcomMbLt.target_opmode == 1) WSContentSend_PD("{s}Target Operation Mode{m}Heating{e}");
+      else if(DcomMbLt.target_opmode == 2) WSContentSend_PD("{s}Target Operation Mode{m}Cooling{e}");
+      else WSContentSend_PD("{s}Target Operation Mode{m}none{e}");
+      if(DcomMbLt.target_spaceheatcool == 0) WSContentSend_PD("{s}Space Heating/Cooling{m}off{e}");
+      else WSContentSend_PD("{s}Space Heating/Cooling{m}on{e}");
+      if(DcomMbLt.target_quietmode == 0) WSContentSend_PD("{s}Target Quiet Mode{m}off{e}");
+      else WSContentSend_PD("{s}Target Quiet Mode{m}on{e}");
+      //if(DcomMbLtMem.target_dhwbooster == 0) WSContentSend_PD("{s}Target DHW Booster{m}off{e}");
+      //else WSContentSend_PD("{s}Target DHW Booster Mode{m}on{e}");
+      
     }
 #endif  // USE_WEBSERVER
 
@@ -346,9 +362,10 @@ void DCOMEvery100ms(void)
             crc = MBCalculateCRC(&buffer[0], data_len-2);
             if (buffer[data_len-1] == (uint8_t (crc >> 8)) && buffer[data_len-2] == (uint8_t (0x00FF & crc))) {            
               found = true;
-              Serial.println("DCOM: crc ok");
+              //Serial.println("DCOM: send answer crc ok");
+              AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: send answer CRC ok"));
             }
-            else AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: CRC not ok"));
+            else AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: send answer CRC not ok"));
           }
         }
         else {
@@ -369,7 +386,7 @@ void DCOMEvery100ms(void)
 
             DcomMbLt.send_state++;
 
-            if(DcomMbLt.send_state >= 4) {
+            if(DcomMbLt.send_state >= 5) {
               Serial.println("DCOM: Switch to measurement values");
               AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: Switch to measurement values"));
               DcomMbLt.send_state = 0;
@@ -391,8 +408,8 @@ void DCOMEvery100ms(void)
               case 0:                             
                 DcomMbLt.unit_error = (uint16_t) (tempint);
                 #ifdef DCOM_LT_DEBUG
-                  Serial.print("DCOM: 0 - Unit Error ");
-                  Serial.println(DcomMbLt.unit_error, DEC);
+                  //Serial.print("DCOM: 0 - Unit Error ");
+                  //Serial.println(DcomMbLt.unit_error, DEC);
                   AddLog(LOG_LEVEL_DEBUG, "DCOM: 0 - Unit Error %d", DcomMbLt.unit_error);
                 #endif
                 break;
@@ -403,8 +420,8 @@ void DCOMEvery100ms(void)
                 DcomMbLt.unit_error_code[1] = (char) (buffer[4]);
                 DcomMbLt.unit_error_code[2] = '\0';
                 #ifdef DCOM_LT_DEBUG
-                  Serial.print("DCOM: 1 - Unit Error Code ");
-                  Serial.println(DcomMbLt.unit_error_code);
+                  //Serial.print("DCOM: 1 - Unit Error Code ");
+                  //Serial.println(DcomMbLt.unit_error_code);
                   AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: 1 - Error Code %s"), DcomMbLt.unit_error_code);
                 #endif
                 break;
@@ -413,8 +430,8 @@ void DCOMEvery100ms(void)
               case 2:
                 DcomMbLt.leaving_water_BHU_temp = (float) (tempint) / 100;
                 #ifdef DCOM_LT_DEBUG
-                  Serial.print("DCOM: 2 - Leaving Water Temperature pre BUH ");
-                  Serial.println(DcomMbLt.leaving_water_BHU_temp);
+                  //Serial.print("DCOM: 2 - Leaving Water Temperature pre BUH ");
+                  //Serial.println(DcomMbLt.leaving_water_BHU_temp);
                   AddLog(LOG_LEVEL_DEBUG, "DCOM: 2 - Leaving Water Temperature pre BUH %d", tempint);
                 #endif
                 break;
@@ -423,8 +440,8 @@ void DCOMEvery100ms(void)
               case 3:
                 DcomMbLt.unit_error_subcode = (uint16_t) (tempint);
                 #ifdef DCOM_LT_DEBUG
-                  Serial.print("DCOM: 3 - Unit Error Subcode ");
-                  Serial.println(DcomMbLt.unit_error_subcode, DEC);
+                  //Serial.print("DCOM: 3 - Unit Error Subcode ");
+                  //Serial.println(DcomMbLt.unit_error_subcode, DEC);
                   AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: 3 - Unit Error Subcode %d"), DcomMbLt.unit_error_subcode);
                 #endif                
                 break;
@@ -433,8 +450,8 @@ void DCOMEvery100ms(void)
               case 4:
                 DcomMbLt.valve_3way = (uint16_t) (tempint);
                 #ifdef DCOM_LT_DEBUG
-                  Serial.print("DCOM: 4 - 3-Way Valve ");
-                  Serial.println(DcomMbLt.valve_3way, DEC);
+                  //Serial.print("DCOM: 4 - 3-Way Valve ");
+                  //Serial.println(DcomMbLt.valve_3way, DEC);
                   AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: 4 - 3-Way Valve %d"), DcomMbLt.valve_3way);
                 #endif                 
                 break;
@@ -443,8 +460,8 @@ void DCOMEvery100ms(void)
               case 5:
                 DcomMbLt.op_mode = (uint16_t) (tempint);
                 #ifdef DCOM_LT_DEBUG
-                  Serial.print("DCOM: 5 - Operation Mode ");
-                  Serial.println(DcomMbLt.op_mode, DEC);
+                  //Serial.print("DCOM: 5 - Operation Mode ");
+                  //Serial.println(DcomMbLt.op_mode, DEC);
                   AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: 5 - Operation Mode %d"), DcomMbLt.op_mode);
                 #endif  
                 break;
@@ -453,8 +470,8 @@ void DCOMEvery100ms(void)
               case 6:
                 DcomMbLt.leaving_water_PHE_temp = (float) (tempint) / 100;
                 #ifdef DCOM_LT_DEBUG
-                  Serial.print("DCOM: 6 - Leaving Water Temperature pre PHE ");
-                  Serial.println(DcomMbLt.leaving_water_PHE_temp, DEC);
+                  //Serial.print("DCOM: 6 - Leaving Water Temperature pre PHE ");
+                  //Serial.println(DcomMbLt.leaving_water_PHE_temp, DEC);
                   AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: 6 - Leaving Water Temperature pre PHE %d"), tempint);
                 #endif  
                 break;
@@ -463,8 +480,8 @@ void DCOMEvery100ms(void)
               case 7:
                 DcomMbLt.liquid_refrig_temp = (float) (tempint) / 100;
                 #ifdef DCOM_LT_DEBUG
-                  Serial.print("DCOM: 7 - Liquid Refrigerant Temperature ");
-                  Serial.println(DcomMbLt.liquid_refrig_temp, DEC);
+                  //Serial.print("DCOM: 7 - Liquid Refrigerant Temperature ");
+                  //Serial.println(DcomMbLt.liquid_refrig_temp, DEC);
                   AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: 7 - Liquid Refrigerant Temperature %d"), tempint);
                 #endif  
                 break;
@@ -473,8 +490,8 @@ void DCOMEvery100ms(void)
               case 8:
                 DcomMbLt.flow_rate = (float) (tempint) / 100;
                 #ifdef DCOM_LT_DEBUG
-                  Serial.print("DCOM: 8 - Flow Rate ");
-                  Serial.println(DcomMbLt.flow_rate, DEC);
+                  //Serial.print("DCOM: 8 - Flow Rate ");
+                  //Serial.println(DcomMbLt.flow_rate, DEC);
                   AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: 8 - Flow Rate %d"), DcomMbLt.flow_rate);
                 #endif  
                 break;
@@ -483,8 +500,8 @@ void DCOMEvery100ms(void)
               case 9:
                 DcomMbLt.room_temp = (float) (tempint) / 100;
                 #ifdef DCOM_LT_DEBUG
-                  Serial.print("DCOM: 9 - Remocon room temperature ");
-                  Serial.println(DcomMbLt.room_temp, DEC);
+                  //Serial.print("DCOM: 9 - Remocon room temperature ");
+                  //Serial.println(DcomMbLt.room_temp, DEC);
                   AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: 9 - Remocon room temperature %d"), DcomMbLt.room_temp);
                 #endif                  
                 break;
@@ -493,8 +510,8 @@ void DCOMEvery100ms(void)
               case 10:
                 DcomMbLt.space_heatcool = (uint16_t) (tempint);
                 #ifdef DCOM_LT_DEBUG
-                  Serial.print("DCOM: 10 - Space Heating/Cooling ");
-                  Serial.println(DcomMbLt.space_heatcool, DEC);
+                  //Serial.print("DCOM: 10 - Space Heating/Cooling ");
+                  //Serial.println(DcomMbLt.space_heatcool, DEC);
                   AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: 10 - Space Heating/Cooling %d"), DcomMbLt.space_heatcool);
                 #endif                   
                 break;
@@ -503,8 +520,8 @@ void DCOMEvery100ms(void)
               case 11:     
                 DcomMbLt.circ_pump_run = (uint16_t) (tempint);
                 #ifdef DCOM_LT_DEBUG
-                  Serial.print("DCOM: 11 - Circulation Pump Running ");
-                  Serial.println(DcomMbLt.circ_pump_run, DEC);
+                  //Serial.print("DCOM: 11 - Circulation Pump Running ");
+                  //Serial.println(DcomMbLt.circ_pump_run, DEC);
                   AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: 11 - Circulation Pump Running %d"), DcomMbLt.circ_pump_run);
                 #endif       
                 break;
@@ -513,8 +530,8 @@ void DCOMEvery100ms(void)
               case 12:
                 DcomMbLt.compressor_run = (uint16_t) (tempint);
                 #ifdef DCOM_LT_DEBUG
-                  Serial.print("DCOM: 12 - Compressor Run ");
-                  Serial.println(DcomMbLt.compressor_run, DEC);
+                  //Serial.print("DCOM: 12 - Compressor Run ");
+                  //Serial.println(DcomMbLt.compressor_run, DEC);
                   AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: 12 - Compressor Run %d"), DcomMbLt.compressor_run);
                 #endif    
                 break;
@@ -523,8 +540,8 @@ void DCOMEvery100ms(void)
               case 13:
                 DcomMbLt.desinfection_op = (uint16_t) (tempint);
                 #ifdef DCOM_LT_DEBUG
-                  Serial.print("DCOM: 13 - Disinfection Operation ");
-                  Serial.println(DcomMbLt.desinfection_op, DEC);
+                  //Serial.print("DCOM: 13 - Disinfection Operation ");
+                  //Serial.println(DcomMbLt.desinfection_op, DEC);
                   AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: 13 - Disinfection Operation %d"), DcomMbLt.desinfection_op);
                 #endif
                 break;
@@ -533,8 +550,8 @@ void DCOMEvery100ms(void)
               case 14:
                 DcomMbLt.defrost_startup = (uint16_t) (tempint);
                 #ifdef DCOM_LT_DEBUG
-                  Serial.print("DCOM: 14 - Defrost/Startup ");
-                  Serial.println(DcomMbLt.defrost_startup, DEC);
+                  //Serial.print("DCOM: 14 - Defrost/Startup ");
+                  //Serial.println(DcomMbLt.defrost_startup, DEC);
                   AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: 14 - Defrost/Startup %d"), DcomMbLt.defrost_startup);
                 #endif                
                 break;
@@ -543,8 +560,8 @@ void DCOMEvery100ms(void)
               case 15:
                 DcomMbLt.dhw_reheat = (uint16_t) (tempint);
                 #ifdef DCOM_LT_DEBUG
-                  Serial.print("DCOM: 15 - DHW Reheat On/Off ");
-                  Serial.println(DcomMbLt.dhw_reheat, DEC);
+                  //Serial.print("DCOM: 15 - DHW Reheat On/Off ");
+                  //Serial.println(DcomMbLt.dhw_reheat, DEC);
                   AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: 15 - DHW Reheat On/Off %d"), DcomMbLt.dhw_reheat);
                 #endif                 
                 break;
@@ -553,8 +570,8 @@ void DCOMEvery100ms(void)
               case 16:
                 DcomMbLt.booster_heat_run = (uint16_t) (tempint);
                 #ifdef DCOM_LT_DEBUG
-                  Serial.print("DCOM: 16 - Booster Heater Run ");
-                  Serial.println(DcomMbLt.booster_heat_run, DEC);
+                  //Serial.print("DCOM: 16 - Booster Heater Run ");
+                  //Serial.println(DcomMbLt.booster_heat_run, DEC);
                   AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: 16 - Booster Heater Run %d"), DcomMbLt.booster_heat_run);
                 #endif                  
                 break;
@@ -575,8 +592,8 @@ void DCOMEvery100ms(void)
               case 17:                            
                 DcomMbLt.return_water_temp = (float) (tempint) / 100;;
                 #ifdef DCOM_LT_DEBUG
-                  Serial.print("DCOM: 17 - Return Water Temperature ");
-                  Serial.println(DcomMbLt.return_water_temp, DEC);
+                  //Serial.print("DCOM: 17 - Return Water Temperature ");
+                  //Serial.println(DcomMbLt.return_water_temp, DEC);
                   AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: 17 - Return Water  Temperature %d"), tempint);
                 #endif   
                 break;
@@ -585,8 +602,8 @@ void DCOMEvery100ms(void)
               case 18: 
                 DcomMbLt.dom_hot_water_temp = (float) (tempint) / 100;;
                 #ifdef DCOM_LT_DEBUG
-                  Serial.print("DCOM: 18 - Domestic Hot Water Temperature ");
-                  Serial.println(DcomMbLt.dom_hot_water_temp, DEC);
+                  //Serial.print("DCOM: 18 - Domestic Hot Water Temperature ");
+                  //Serial.println(DcomMbLt.dom_hot_water_temp, DEC);
                   AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: 18 - Domestic Hot Water Temperature %d"), tempint);
                 #endif  
                 break;
@@ -595,8 +612,8 @@ void DCOMEvery100ms(void)
               case 19:
                 DcomMbLt.outside_air_temp = (float) (tempint) / 100;;
                 #ifdef DCOM_LT_DEBUG
-                  Serial.print("DCOM: 19 - Outside Air Temperature ");
-                  Serial.println(DcomMbLt.outside_air_temp, DEC);
+                  //Serial.print("DCOM: 19 - Outside Air Temperature ");
+                  //Serial.println(DcomMbLt.outside_air_temp, DEC);
                   AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: 19 - Outside Air Temperature %d"), tempint);
                 #endif   
                 break;
@@ -609,11 +626,12 @@ void DCOMEvery100ms(void)
             DcomMbLt.read_state++;
             //if (sizeof(dcom_lt_io_start_addresses)/2 == DcomMbLt.read_state) {
             if (20 == DcomMbLt.read_state) {
-              Serial.println("DCOM: Switch to target values");
+              //Serial.println("DCOM: Switch to target values");
               AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: Switch to target values"));
               DcomMbLt.read_state = 0;
               DcomMbLt.recv_active = 0;
               DcomMbLt.send_active = 1;
+              DcomMbLt.send_retry = 1;
             }
 
           }
@@ -630,6 +648,8 @@ void DCOMEvery100ms(void)
     if (DcomMbLt.send_active) {
       
       if(0 == DcomMbLt.send_retry || found) {
+        AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: Send routine"));
+        
         bool sendsome = false;
         
         DcomMbLt.send_retry = 5;
@@ -648,7 +668,7 @@ void DCOMEvery100ms(void)
                       DcomMbLtMem.target_leavingwaterheattemp = DcomMbLt.target_leavingwaterheattemp;
                       sendbuf[3] = 1;                                         // adress LSB
                       sendbuf[4] = 0x00;                                      // data Hi
-                      sendbuf[5] = (uint8_t) DcomMbLt.target_leavingwaterheattemp;  // data Lo
+                      sendbuf[5] = (uint8_t) (DcomMbLt.target_leavingwaterheattemp / 10);  // data Lo, no decimal places
                       sendsome = true;
                       AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: Send Leaving Water Main Heating Setpoint"));
                       break;
@@ -694,8 +714,21 @@ void DCOMEvery100ms(void)
                     }
                     else DcomMbLt.send_state++;         // else go on to next entry
 
+          // Space Heating/Cooling On/Off     target_spaceheatcool
           // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-          case 4:   //DcomMbLt.send_state = 0;
+          case 4:   if (DcomMbLt.target_spaceheatcool != DcomMbLtMem.target_spaceheatcool) {
+                      DcomMbLtMem.target_spaceheatcool = DcomMbLt.target_spaceheatcool;
+                      sendbuf[3] = 4;                                         // adress LSB
+                      sendbuf[4] = 0x00;                                      // data Hi
+                      sendbuf[5] = (uint8_t) DcomMbLt.target_spaceheatcool;   // data Lo
+                      sendsome = true;
+                      AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: Send Space Heating/Cooling On/Off"));
+                      break;
+                    }
+                    else DcomMbLt.send_state++;         // else go on to next entry
+
+          // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+          case 5:   //DcomMbLt.send_state = 0;
                     //DcomMbLt.send_state++;
                     Serial.println("DCOM: Switch to measurement values");
                     AddLog(LOG_LEVEL_DEBUG, PSTR("DCOM: Switch to measurement values"));

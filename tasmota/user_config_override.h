@@ -98,6 +98,7 @@ Examples :
 #define USE_BURST_CONTROL
 #define USE_TIMEPROP
 #define USE_DCOM_LT_MB
+#define USE_SDM72_SDM230
 #define USE_UVRCAN
 //#define USE_MCP2515
 #define USE_DDSU666_LISTEN              // Add support for Chint DDSU666 Modbus energy monitor (+0k6 code) in listen only mode
@@ -105,7 +106,7 @@ Examples :
 #define USE_I2C
 #define USE_DISPLAY_LCD
 #define USE_DISPLAY
-#define USE_SDM72_SDM230
+
 
 
 #undef USE_INFLUXDB

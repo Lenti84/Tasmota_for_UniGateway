@@ -29,17 +29,19 @@
   #define SDM72_SDM230_SPEED       9600    // default SDM72/SDM230 Modbus address
 #endif
 // can be user defined in my_user_config.h
-#ifndef SDM72_ADDR
-  #define SDM72_ADDR        1       // default SDM72 Modbus address
+#ifndef SDM72230_72_ADDR
+  #define SDM72230_72_ADDR        1       // default SDM72 Modbus address
 #endif
-#ifndef SDM230_ADDR
-  #define SDM230_ADDR       2       // default SDM230 Modbus address
+#ifndef SDM72230_230_ADDR
+  #define SDM72230_230_ADDR       2       // default SDM230 Modbus address
 #endif
 
 #include <TasmotaModbus.h>
 TasmotaModbus *Sdm72Sdm230Modbus;
 
-struct SDM72SDM230 {
+uint8_t unused1;
+
+struct SDM72_SDM230 {
   float total_active_SDM72 = NAN;
   float total_active_SDM230 = NAN;
   float import_power_SDM72 = NAN;
@@ -51,11 +53,19 @@ struct SDM72SDM230 {
 
 // 2D-array: address, modbus adress, target mem adress (register count)
 const uint32_t sdm72sdm230_register[][4] {
-  {0x0034, SDM72_ADDR, (uint32_t) &Sdm72Sdm230.total_active_SDM72},   // SDM72 total system power     [W]
-  {0x0048, SDM72_ADDR, (uint32_t) &Sdm72Sdm230.import_power_SDM72},   // SDM72 total import energy    [kWh]
-  {0x000C, SDM230_ADDR, (uint32_t) &Sdm72Sdm230.total_active_SDM230}, // SDM230 power                 [W]
-  {0x0048, SDM230_ADDR, (uint32_t) &Sdm72Sdm230.import_power_SDM230}  // SDM230 Import active energy  [kWh]
+  {0x0034, SDM72230_72_ADDR, (uint32_t) &Sdm72Sdm230.total_active_SDM72},   // SDM72 total system power     [W]
+  {0x0048, SDM72230_72_ADDR, (uint32_t) &Sdm72Sdm230.import_power_SDM72},   // SDM72 total import energy    [kWh]
+  {0x000C, SDM72230_230_ADDR, (uint32_t) &Sdm72Sdm230.total_active_SDM230}, // SDM230 power                 [W]
+  {0x0048, SDM72230_230_ADDR, (uint32_t) &Sdm72Sdm230.import_power_SDM230}  // SDM230 Import active energy  [kWh]
 };
+
+/*********************************************************************************************/
+
+float Sdm72Sdm230GetData(uint8_t index) {
+  if(index == 1) return Sdm72Sdm230.total_active_SDM72;
+  else if(index == 2) return Sdm72Sdm230.total_active_SDM230;
+  else return 0.0;
+}
 
 /*********************************************************************************************/
 
@@ -109,26 +119,28 @@ void Sdm72Sdm230Every250ms(void)
 }
 
 void Sdm72Sdm230SnsInit(void)
-{  
-  AddLog(LOG_LEVEL_INFO, PSTR("SDM72230: Sns Init"));
-  Sdm72Sdm230Modbus = new TasmotaModbus(Pin(GPIO_SDM72_SDM230_RX), Pin(GPIO_SDM72_SDM230_TX), Pin(GPIO_NRG_MBS_TX_ENA));
-  uint8_t result = Sdm72Sdm230Modbus->Begin(SDM72_SDM230_SPEED);
-  if (result) {
-    if (1 == result) {
-        //ClaimSerial();
-        Sdm72Sdm230.init = 1;
-        AddLog(LOG_LEVEL_INFO, PSTR("SDM72230: Sns Init successful"));
-    }
-    else AddLog(LOG_LEVEL_INFO, PSTR("SDM72230: Sns Init result != 1"));
+{ 
+  if (PinUsed(GPIO_SDM72_SDM230_RX) && PinUsed(GPIO_SDM72_SDM230_TX) && PinUsed(GPIO_NRG_MBS_TX_ENA)) {
+    AddLog(LOG_LEVEL_INFO, PSTR("SDM72230: Sns Init"));
+    Sdm72Sdm230Modbus = new TasmotaModbus(Pin(GPIO_SDM72_SDM230_RX), Pin(GPIO_SDM72_SDM230_TX), Pin(GPIO_NRG_MBS_TX_ENA));
+    uint8_t result = Sdm72Sdm230Modbus->Begin(SDM72_SDM230_SPEED);
+    if (result) {
+      if (1 == result) {
+          //ClaimSerial();
+          Sdm72Sdm230.init = 1;
+          AddLog(LOG_LEVEL_INFO, PSTR("SDM72230: Sns Init successful"));
+      }
+      else AddLog(LOG_LEVEL_INFO, PSTR("SDM72230: Sns Init result != 1"));
 
-  } else {
-    AddLog(LOG_LEVEL_INFO, PSTR("SDM72230: Sns Init Error"));
+    } else {
+      AddLog(LOG_LEVEL_INFO, PSTR("SDM72230: Sns Init Error"));
+    }
   }
 }
 
 void Sdm72Sdm230DrvInit(void)
 {
-  if (PinUsed(GPIO_SDM72_SDM230_RX) && PinUsed(GPIO_SDM72_SDM230_TX)) {
+  if (PinUsed(GPIO_SDM72_SDM230_RX) && PinUsed(GPIO_SDM72_SDM230_TX) && PinUsed(GPIO_NRG_MBS_TX_ENA)) {
     AddLog(LOG_LEVEL_INFO, PSTR("SDM72230: Drv Init"));
   }
 }

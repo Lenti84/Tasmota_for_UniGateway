@@ -972,7 +972,7 @@
 #define D_UNIT_KILOOHM "kΩ"
 #define D_UNIT_KILOWATTHOUR "kWh"
 #define D_UNIT_LITERS "L"
-#define D_UNIT_LITERS_PER_MIN "L/m"
+#define D_UNIT_LITERS_PER_MIN "L/min"
 #define D_UNIT_LUX "lx"
 #define D_UNIT_MICROGRAM_PER_CUBIC_METER "µg/m³"
 #define D_UNIT_MICROMETER "µm"

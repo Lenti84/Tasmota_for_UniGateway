@@ -24,16 +24,16 @@
 #warning **** USE_MCP2515 and USE_CANSNIFFER disabled in favour of USE_UVRCAN ****
 #endif
 /*********************************************************************************************\
- * CAN sniffer using MCP2515 - Microchip CAN controller
+ * CAN interface using MCP2515 - Microchip CAN controller
  *
  * Connections:
  * MCP2515  ESP32           Tasmota
  * -------  --------------  ----------
  *  INT     GPIO35          MCP2515_INT
- *  SCK     GPIO14          SPI CLK
- *  SI      GPIO13          SPI MOSI
- *  SO      GPIO12          SPI MISO
- *  CS      GPIO15          MCP2515
+ *  SCK     GPIO14          SPI CLK 1
+ *  SI      GPIO13          SPI MOSI 1
+ *  SO      GPIO12          SPI MISO 1
+ *  CS      GPIO15          MCP2515_CS
  *  Gnd     Gnd
  *  VCC     Vin/5V
 \*********************************************************************************************/
@@ -44,7 +44,7 @@
 #define XDRV_135              135
 
 #ifndef UVRCAN_BITRATE
-  #define UVRCAN_BITRATE      CAN_125KBPS
+  #define UVRCAN_BITRATE      CAN_50KBPS
 #endif
 
 #ifndef UVRCAN_CLOCK
@@ -164,15 +164,15 @@ void UVRCAN_SetFilter(uint8_t RecvId) {
     /*
         set filter 0 ... 5
     */
-    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF0, false, ((uint32_t) RecvId | CAN_RECV_ID_ANALOG_1) )) {
+    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF0, false, ((uint32_t) RecvId | CAN_RECV_ID_ANALOG_4) )) {
       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set setFilter RXF0"));
       return;
     }
-    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF1, false, ((uint32_t)RecvId | CAN_RECV_ID_DIGITAL_1) )) {
+    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF1, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_4) )) {
       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set setFilter RXF1"));
       return;
     }
-    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF2, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_1) )) {
+    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF2, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_4) )) {
       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set setFilter RXF2"));
       return;
     }
@@ -180,7 +180,7 @@ void UVRCAN_SetFilter(uint8_t RecvId) {
       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set setFilter RXF3"));
       return;
     }
-    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF4, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_1) )) {
+    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF4, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_4) )) {
       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set setFilter RXF4"));
       return;
     }
@@ -235,7 +235,8 @@ void UVRCAN_Init(void) {
     }
 
     // set filter id
-    UVRCAN_SetFilter((uint32_t) Settings->UvrCanRecvId);
+    AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Set Recv Id %d"), (uint8_t) Settings->UvrCanRecvId);
+    UVRCAN_SetFilter((uint8_t) Settings->UvrCanRecvId);
     
     delay(10);
     if (MCP2515::ERROR_OK != mcp2515->setNormalMode()) {
@@ -245,6 +246,7 @@ void UVRCAN_Init(void) {
 
     AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Initialized"));
     Mcp2515.init_status = 1;
+    Mcp2515.flagRecv = 0;
   }
 }
 
@@ -261,7 +263,7 @@ void UVRCAN_Write() {
   if(Settings->UvrCanDataset == 1) {
     UVRCan_Dataset_1_Send(&canMsg, messagecnt);
     messagecnt++;
-    if (messagecnt>3) messagecnt = 0;
+    if (messagecnt>4) messagecnt = 0;
   }
   else if(Settings->UvrCanDataset == 2) {
     UVRCan_Dataset_2_Send(&canMsg, messagecnt);
@@ -294,7 +296,8 @@ void UVRCAN_Read() {
     mcp2515->checkReceive();
     nCounter++;
     if (mcp2515->readMessage(&canFrame) == MCP2515::ERROR_OK) {
-      Serial.println(F("UVRCAN: Frame Rcv"));
+      //Serial.println(F("UVRCAN: Frame Rcv"));
+      AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Frame Rcv"));
 
       Mcp2515.lastFrameRecv = TasmotaGlobal.uptime;
 
@@ -310,12 +313,14 @@ void UVRCAN_Read() {
         }
         
         if(Settings->UvrCanDataset == 1) {
+          AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 1"));
           if(canFrame.can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_DIGITAL_1)) UVRCan_Dataset_1_Recv(&canFrame, CAN_RECV_ID_DIGITAL_1);
-          else if(canFrame.can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_ANALOG_1)) UVRCan_Dataset_1_Recv(&canFrame, CAN_RECV_ID_ANALOG_1);
+          else if(canFrame.can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_ANALOG_4)) UVRCan_Dataset_1_Recv(&canFrame, CAN_RECV_ID_ANALOG_4);
         }
         else if(Settings->UvrCanDataset == 2) {
+          AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 2"));
           //if(canFrame.can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_DIGITAL_1)) UVRCan_Dataset_2_Recv(&canFrame, CAN_RECV_ID_DIGITAL_1);
-          //else if(canFrame.can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_ANALOG_1)) UVRCan_Dataset_2_Recv(&canFrame, CAN_RECV_ID_ANALOG_1);
+          //else if(canFrame.can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_ANALOG_4)) UVRCan_Dataset_2_Recv(&canFrame, CAN_RECV_ID_ANALOG_4);
         }
 
     } else if (mcp2515->checkError()) {
@@ -330,6 +335,7 @@ void UVRCAN_Read() {
 
 void UVRCAN_ISR() {
     Mcp2515.flagRecv = 1;
+    Serial.println(F("UVRCAN: Rcv Int"));
 }
 
 
@@ -353,6 +359,7 @@ bool Xdrv135(uint32_t function) {
         break;
       case FUNC_EVERY_SECOND:
         UVRCAN_Write();
+        Mcp2515.flagRecv = 1;       // read CAN messages stored without INT generation by MCP2515
         break;
 
       case FUNC_JSON_APPEND:
@@ -392,9 +399,9 @@ void UVRCan_Dataset_1_Send (struct can_frame *canMsg, uint8_t message_nr) {
             else intval & ~0x0020;    
             if (DcomMbLt.valve_3way) intval | 0x0040;
             else intval & ~0x0040;
-            if (DcomMbLt.op_mode = 1) intval | 0x0080;
+            if (DcomMbLt.op_mode == 1) intval | 0x0080;
             else intval & ~0x0080;
-            if (DcomMbLt.op_mode = 2) intval | 0x0100;
+            if (DcomMbLt.op_mode == 2) intval | 0x0100;
             else intval & ~0x0100;
             canMsg->data[0] = (uint8_t) (intval & 0xFF);
             canMsg->data[1] = (uint8_t) (intval >> 8 & 0xFF);
@@ -466,17 +473,34 @@ void UVRCan_Dataset_1_Send (struct can_frame *canMsg, uint8_t message_nr) {
             break;
 
     case 4: canMsg->can_id = ((uint32_t)Settings->UvrCanSendId | CAN_SEND_ID_ANALOG_4);
-            canMsg->data[0] = 0x00;
-            canMsg->data[1] = 0x00;
 
-            canMsg->data[2] = 0x00;
-            canMsg->data[3] = 0x00;
+            #ifdef USE_SDM72_SDM230
+              intval = (int) (Sdm72Sdm230GetData(1));
+              canMsg->data[0] = (uint8_t) (intval & 0xFF);
+              canMsg->data[1] = (uint8_t) (intval >> 8 & 0xFF);
 
-            canMsg->data[4] = 0x00;
-            canMsg->data[5] = 0x00;
+              intval = (int) (Sdm72Sdm230GetData(2));
+              canMsg->data[2] = (uint8_t) (intval & 0xFF);
+              canMsg->data[3] = (uint8_t) (intval >> 8 & 0xFF);
 
-            canMsg->data[6] = 0x00;
-            canMsg->data[7] = 0x00;
+              canMsg->data[4] = 0x00;
+              canMsg->data[5] = 0x00;
+
+              canMsg->data[6] = 0x00;
+              canMsg->data[7] = 0x00;
+            #else
+              canMsg->data[0] = 0x00;
+              canMsg->data[1] = 0x00;
+
+              canMsg->data[2] = 0x00;
+              canMsg->data[3] = 0x00;
+
+              canMsg->data[4] = 0x00;
+              canMsg->data[5] = 0x00;
+
+              canMsg->data[6] = 0x00;
+              canMsg->data[7] = 0x00;
+            #endif  // USE_SDM72_SDM230
             break;    
 
     default: 
@@ -585,51 +609,62 @@ void UVRCan_Dataset_1_Recv (struct can_frame *canMsg, uint32_t message_id) {
 
   switch (message_id) {
     case CAN_RECV_ID_DIGITAL_1:
-          // Space Heating/Cooling On/Off         	int16	  Auto/Heat/Cool        M1, Bit 0 Heating, M1, Bit 1 Cooling
-          // Space Heating/Cooling On/Off         	int16	  0:OFF 1:ON	          M1, Bit 2
-          // Quiet Mode Operation	                  int16	  0:OFF 1:ON	          M1, Bit 3
-          // DHW Booster Mode On/Off                int16	  0:OFF 1:ON	          M1, Bit 4
+          // UVR 9/10     Mode Heat/Cool                      	int16	  Auto/Heat/Cool        M1, Bit 8 Heating, M1, Bit 9 Cooling
+          // UVR 11       Space Heating/Cooling On/Off         	int16	  0:OFF 1:ON	          M1, Bit 10
+          // UVR 12       Quiet Mode Operation	                int16	  0:OFF 1:ON	          M1, Bit 11
+          // UVR 13       DHW Booster Mode On/Off               int16	  0:OFF 1:ON	          M1, Bit 12
 
           // Dies wird dann in die ersten 4 bytes gesteckt, die Reihenfolge ist so: (1. byte, 2. byte usw.)
           // 8 7 6 5 4 3 2 1 16 15 14 13 12 11 10 9 24 23 22 21 20 19 18 17 32 31 30 29 28 27 26 25
           // Die Zahlen steht für die jeweilge Ausgangsnummer.
 
+          // data[0] - Digital Out  1...8
+          // data[1] - Digital Out  8...16
+          // data[2] - Digital Out 17...24
+          // data[3] - Digital Out 25...32
+
           // Operation Mode - Auto/Heat/Cool - Heating has prio
-          if (canMsg->data[0] & 0x01) intval = 1;
-          else if (canMsg->data[0] & 0x02) intval = 2;
+          if (canMsg->data[1] & 0x01) intval = 1;
+          else if (canMsg->data[1] & 0x02) intval = 2;
           else intval = 0;
           DcomMbLt.target_opmode = (uint16_t) intval;
-          Serial.print("Operation Mode: "); Serial.println(intval, DEC);
+          //Serial.print("Operation Mode: "); Serial.println(intval, DEC);
+          AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Operation Mode: %d"), intval);
 
           // Space Heating/Cooling On/Off
-          if (canMsg->data[0] & 0x04) intval = 1;
+          if (canMsg->data[1] & 0x04) intval = 1;
           else intval = 0;
           DcomMbLt.target_spaceheatcool = (uint16_t) intval;
-          Serial.print("Space Heating/Cooling: "); Serial.println(intval, DEC);
+          //Serial.print("Space Heating/Cooling: "); Serial.println(intval, DEC);
+          AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Space Heating/Cooling: %d"), intval);
 
           // Quiet Mode Operation
-          if (canMsg->data[0] & 0x08) intval = 1;
+          if (canMsg->data[1] & 0x08) intval = 1;
           else intval = 0;
           DcomMbLt.target_quietmode = (uint16_t) intval;
-          Serial.print("Quiet Mode Operation: "); Serial.println(intval, DEC);
+          //Serial.print("Quiet Mode Operation: "); Serial.println(intval, DEC);
+          AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Quiet Mode Operation: %d"), intval);
 
           // DHW Booster Mode On/Off
-          if (canMsg->data[0] & 0x10) intval = 1;
+          if (canMsg->data[1] & 0x10) intval = 1;
           else intval = 0;
           DcomMbLt.target_dhwbooster = (uint16_t) intval;
-          Serial.print("DHW Booster Mode On/Off: "); Serial.println(intval, DEC);
+          //Serial.print("DHW Booster Mode On/Off: "); Serial.println(intval, DEC);
+          AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: DHW Booster Mode On/Off: %d"), intval);
 
           break;
 
-    case CAN_RECV_ID_ANALOG_1:
+    case CAN_RECV_ID_ANALOG_4:    // CAN Analog Out 13 ... 16
           // Leaving Water Main Heating Setpoint    int16	  25 .. 55ºC	            M0, Byte0..1
 
+          // CAN Analog Out 13
           // Leaving Water Main Heating Setpoint
           intval = ((unsigned int) canMsg->data[1] << 8) + (unsigned int) canMsg->data[0];
-          if (intval > 550) intval = 55;
-          else if (intval < 250) intval = 25;
-          DcomMbLt.target_leavingwaterheattemp = (uint16_t) intval / 10;
-          Serial.print("Leaving Water Main Heating Setpoint: "); Serial.println(DcomMbLt.target_leavingwaterheattemp, DEC);
+          if (intval > 550) intval = 550;
+          else if (intval < 250) intval = 250;
+          DcomMbLt.target_leavingwaterheattemp = (uint16_t) intval;
+          //Serial.print("Leaving Water Main Heating Setpoint 0.1°C: "); Serial.println(DcomMbLt.target_leavingwaterheattemp, DEC);
+          AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Leaving Water Main Heating Setpoint 0.1°C: %d"), DcomMbLt.target_leavingwaterheattemp);
           
           break;
 
