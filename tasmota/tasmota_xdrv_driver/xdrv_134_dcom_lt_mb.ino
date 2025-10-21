@@ -106,7 +106,7 @@ const uint16_t dcom_lt_io_start_addresses[] {
 };
 
 // target registers
-// DCOM LT MB holding registers
+// DCOM LT MB holding registers - NOT USED
 const uint16_t dcom_lt_mb_target_start_addresses[] { 
   1,  // Leaving Water Main Heating Setpoint        int16	  25 .. 55ºC
   2,  // Leaving Water Main Cooling Setpoint      	int16	  5 .. 22ºC
@@ -705,7 +705,7 @@ void DCOMEvery100ms(void)
           // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
           case 3:   if (DcomMbLt.target_dhwbooster != DcomMbLtMem.target_dhwbooster) {
                       DcomMbLtMem.target_dhwbooster = DcomMbLt.target_dhwbooster;
-                      sendbuf[3] = 13;                                        // adress LSB
+                      sendbuf[3] = 7;                                         // adress LSB
                       sendbuf[4] = 0x00;                                      // data Hi
                       sendbuf[5] = (uint8_t) DcomMbLt.target_dhwbooster;      // data Lo
                       sendsome = true;

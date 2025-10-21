@@ -229,6 +229,8 @@ const be_const_member_t lv_gpio_constants[] = {
     { "SDM230_TX", (int32_t) GPIO_SDM230_TX },
     { "SDM630_RX", (int32_t) GPIO_SDM630_RX },
     { "SDM630_TX", (int32_t) GPIO_SDM630_TX },
+    { "SDM630_MULTI_RX", (int32_t) GPIO_SDM630_MULTI_RX },
+    { "SDM630_MULTI_TX", (int32_t) GPIO_SDM630_MULTI_TX },
     { "SDM72_RX", (int32_t) GPIO_SDM72_RX },
     { "SDM72_TX", (int32_t) GPIO_SDM72_TX },
     { "SDS0X1_RX", (int32_t) GPIO_SDS0X1_RX },

@@ -334,6 +334,8 @@ const uint16_t kGpioConvert[] PROGMEM = {
   AGPIO(GPIO_SDM120_RX),      // SDM120 Serial interface
   AGPIO(GPIO_SDM630_TX),      // SDM630 Serial interface
   AGPIO(GPIO_SDM630_RX),      // SDM630 Serial interface
+  AGPIO(GPIO_SDM630_MULTI_TX),  // SDM630 Serial interface
+  AGPIO(GPIO_SDM630_MULTI_RX),  // SDM630 Serial interface
   AGPIO(GPIO_TM1638CLK),      // TM1638 Clock
   AGPIO(GPIO_TM1638DIO),      // TM1638 Data I/O
   AGPIO(GPIO_TM1638STB),      // TM1638 Strobe
@@ -442,9 +444,16 @@ const uint16_t kGpioConvert[] PROGMEM = {
   AGPIO(GPIO_DEYE_METER_TX),   // Deye Meter Serial interface RS485 Tx
   AGPIO(GPIO_DEYE_METER_RX),   // Deye Meter Serial interface RS485 Rx
   AGPIO(GPIO_DEYE_METER_ENA),  // Deye Meter Serial interface RS485 Enable
+  AGPIO(GPIO_SOLIS_METER_TX),   // Solis Meter Serial interface RS485 Tx
+  AGPIO(GPIO_SOLIS_METER_RX),   // Solis Meter Serial interface RS485 Rx
+  AGPIO(GPIO_SOLIS_METER_ENA),  // Solis Meter Serial interface RS485 Enable
   AGPIO(GPIO_BURST_CONTROL_PWM),     // Burst Control PWM Pin
+  AGPIO(GPIO_BURST_CONTROL_STATIC),  // Burst Control Static Pin
   AGPIO(GPIO_SDM72_SDM230_TX),     // SDM72 SDM230 Serial interface
   AGPIO(GPIO_SDM72_SDM230_RX),     // SDM72 SDM230 Serial interface
+  AGPIO(GPIO_AISWEI_GATEWAY_TX),   // Aiswei Gateway Serial interface RS485 Tx
+  AGPIO(GPIO_AISWEI_GATEWAY_RX),   // Aiswei Gateway Serial interface RS485 Rx
+  AGPIO(GPIO_AISWEI_GATEWAY_ENA),  // Aiswei Gateway Serial interface RS485 Enable
   AGPIO(GPIO_SM2135_CLK),     // SM2135 CLOCK
   AGPIO(GPIO_SM2135_DAT),     // SM2135 DATA
   AGPIO(GPIO_DEEPSLEEP),

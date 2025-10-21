@@ -52,6 +52,7 @@ enum UserSelectablePins {
   GPIO_SR04_TRIG, GPIO_SR04_ECHO,      // SR04 interface
   GPIO_SDM120_TX, GPIO_SDM120_RX,      // SDM120 Serial interface
   GPIO_SDM630_TX, GPIO_SDM630_RX,      // SDM630 Serial interface
+  GPIO_SDM630_MULTI_TX, GPIO_SDM630_MULTI_RX,      // SDM630 Serial interface
   GPIO_TM1638CLK, GPIO_TM1638DIO, GPIO_TM1638STB,  // TM1638 interface
   GPIO_MP3_DFR562,                     // RB-DFR-562, DFPlayer Mini MP3 Player
   GPIO_HX711_SCK, GPIO_HX711_DAT,      // HX711 Load Cell interface
@@ -216,8 +217,11 @@ enum UserSelectablePins {
   GPIO_DDSU666_LISTEN_RX,               // DDSU666 Serial interface listen mode
   GPIO_DCOM_MB_LT_TX, GPIO_DCOM_MB_LT_RX, GPIO_DCOM_MB_LT_ENA, // DCOM MB LT Serial interface
   GPIO_DEYE_METER_TX, GPIO_DEYE_METER_RX, GPIO_DEYE_METER_ENA, // DEYE METER Serial interface
+  GPIO_SOLIS_METER_TX, GPIO_SOLIS_METER_RX, GPIO_SOLIS_METER_ENA, // SOLIS METER Serial interface
   GPIO_SDM72_SDM230_TX, GPIO_SDM72_SDM230_RX,                  // SDM72 SDM230 Serial interface
+  GPIO_AISWEI_GATEWAY_TX, GPIO_AISWEI_GATEWAY_RX, GPIO_AISWEI_GATEWAY_ENA, // Aiswei Gateway Serial interface
   GPIO_BURST_CONTROL_PWM,               // BURST CONTROL PWM Pin
+  GPIO_BURST_CONTROL_STATIC,            // BURST CONTROL Static Pin
   GPIO_SENSOR_END };
 
 // Error as warning to rethink GPIO usage with max 2045
@@ -316,6 +320,7 @@ const char kSensorNames[] PROGMEM =
   D_SENSOR_SR04_TRIG "|" D_SENSOR_SR04_ECHO "|"
   D_SENSOR_SDM120_TX "|" D_SENSOR_SDM120_RX "|"
   D_SENSOR_SDM630_TX "|" D_SENSOR_SDM630_RX "|"
+  D_SENSOR_SDM630_MULTI_TX "|" D_SENSOR_SDM630_MULTI_RX "|"
   D_SENSOR_TM1638_CLK "|" D_SENSOR_TM1638_DIO "|" D_SENSOR_TM1638_STB "|"
   D_SENSOR_DFR562 "|"
   D_SENSOR_HX711_SCK "|" D_SENSOR_HX711_DAT "|"
@@ -485,8 +490,12 @@ const char kSensorNames[] PROGMEM =
   D_SENSOR_DEYE_METER_TX "|"
   D_SENSOR_DEYE_METER_RX "|"
   D_SENSOR_DEYE_METER_ENA "|"
+  D_SENSOR_SOLIS_METER_TX "|"
+  D_SENSOR_SOLIS_METER_RX "|"
+  D_SENSOR_SOLIS_METER_ENA "|"
   D_SENSOR_SDM72_SDM230_TX "|" D_SENSOR_SDM72_SDM230_RX "|"
-  D_SENSOR_BURST_CONTROL_PWM "|"
+  D_SENSOR_AISWEI_GATEWAY_TX "|" D_SENSOR_AISWEI_GATEWAY_RX "|" D_SENSOR_AISWEI_GATEWAY_ENA "|"
+  D_SENSOR_BURST_CONTROL_PWM "|" D_SENSOR_BURST_CONTROL_STATIC "|"
   ;
 
 const char kSensorNamesFixed[] PROGMEM =
@@ -902,6 +911,10 @@ const uint16_t kGpioNiceList[] PROGMEM = {
   AGPIO(GPIO_SDM630_TX),                // SDM630 Serial interface
   AGPIO(GPIO_SDM630_RX),                // SDM630 Serial interface
 #endif
+#ifdef USE_SDM630_MULTI
+  AGPIO(GPIO_SDM630_MULTI_TX),          // SDM630 Serial interface
+  AGPIO(GPIO_SDM630_MULTI_RX),          // SDM630 Serial interface
+#endif
 #ifdef USE_DDS2382
   AGPIO(GPIO_DDS2382_TX),               // DDS2382 Serial interface
   AGPIO(GPIO_DDS2382_RX),               // DDS2382 Serial interface
@@ -927,12 +940,23 @@ const uint16_t kGpioNiceList[] PROGMEM = {
   AGPIO(GPIO_DEYE_METER_RX),            // DEYE METER Serial interface
   AGPIO(GPIO_DEYE_METER_ENA),           // DEYE METER Serial interface
 #endif  // USE_DEYE_METER
+#ifdef USE_SOLIS_METER  
+  AGPIO(GPIO_SOLIS_METER_TX),            // SOLIS METER Serial interface
+  AGPIO(GPIO_SOLIS_METER_RX),            // SOLIS METER Serial interface
+  AGPIO(GPIO_SOLIS_METER_ENA),           // SOLIS METER Serial interface
+#endif  // USE_SOLIS_METER
 #ifdef USE_SDM230
   AGPIO(GPIO_SDM72_SDM230_TX),          // SDM72 SDM230 Serial interface
   AGPIO(GPIO_SDM72_SDM230_RX),          // SDM72 SDM230 Serial interface
 #endif
+#ifdef USE_AISWEI_GATEWAY
+  AGPIO(GPIO_AISWEI_GATEWAY_TX),        // Aiswei Gateway Serial interface RS485 Tx
+  AGPIO(GPIO_AISWEI_GATEWAY_RX),        // Aiswei Gateway Serial interface RS485 Rx
+  AGPIO(GPIO_AISWEI_GATEWAY_ENA),       // Aiswei Gateway Serial interface RS485 Ena
+#endif
 #ifdef USE_BURST_CONTROL
   AGPIO(GPIO_BURST_CONTROL_PWM),        // BURST CONTROL PWM Pin
+  AGPIO(GPIO_BURST_CONTROL_STATIC),        // BURST CONTROL PWM Pin
 #endif  // USE_BURST_CONTROL
 #ifdef USE_SOLAX_X1
   AGPIO(GPIO_SOLAXX1_TX),               // Solax Inverter tx pin

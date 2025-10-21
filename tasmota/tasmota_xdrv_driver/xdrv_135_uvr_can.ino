@@ -19,7 +19,7 @@
 
 #ifdef USE_SPI
 #ifdef USE_UVRCAN
-#ifdef USE_MCP2515 || USE_CANSNIFFER
+#if defined(USE_MCP2515) || defined(USE_CANSNIFFER)
 #undef USE_MCP2515
 #warning **** USE_MCP2515 and USE_CANSNIFFER disabled in favour of USE_UVRCAN ****
 #endif
@@ -44,7 +44,7 @@
 #define XDRV_135              135
 
 #ifndef UVRCAN_BITRATE
-  #define UVRCAN_BITRATE      CAN_50KBPS
+  #define UVRCAN_BITRATE      CAN_125KBPS
 #endif
 
 #ifndef UVRCAN_CLOCK
@@ -110,7 +110,8 @@ void (* const UvrCanCommand[])(void) PROGMEM = { &CmndUvrCanDataset, &CmndUvrCan
 struct UVRCAN_Struct {
   uint32_t lastFrameRecv = 0;
   int8_t   init_status = 0;
-  unsigned char flagRecv = 0;  
+  unsigned char flagRecv = 0;
+  uint8_t  errors = 0; 
 } Mcp2515;
 
 struct can_frame canFrame;
@@ -122,7 +123,7 @@ MCP2515 *mcp2515 = nullptr;
 \*********************************************************************************************/
 
 void CmndUvrCanDataset (void) {
-  if ((XdrvMailbox.payload >= 1) && (XdrvMailbox.payload <= 2)) {
+  if ((XdrvMailbox.payload >= 1) && (XdrvMailbox.payload <= 3)) {
     Settings->UvrCanDataset = XdrvMailbox.payload;
   }
   ResponseCmndIdxNumber(Settings->UvrCanDataset);
@@ -270,6 +271,11 @@ void UVRCAN_Write() {
     messagecnt++;
     if (messagecnt>2) messagecnt = 1;
   }
+  else if(Settings->UvrCanDataset == 3) {
+    UVRCan_Dataset_3_Send(&canMsg, messagecnt);
+    messagecnt++;
+    if (messagecnt>3) messagecnt = 1;
+  }
      
   mcp2515->sendMessage(&canMsg);
 
@@ -325,9 +331,10 @@ void UVRCAN_Read() {
 
     } else if (mcp2515->checkError()) {
       uint8_t errFlags = mcp2515->getErrorFlags();
-        mcp2515->clearRXnOVRFlags();
-        AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Received error %d"), errFlags);
-        break;
+      Mcp2515.errors = errFlags;
+      mcp2515->clearRXnOVRFlags();
+      AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Received error %d"), errFlags);
+      break;
     }
   }
 }
@@ -336,6 +343,25 @@ void UVRCAN_Read() {
 void UVRCAN_ISR() {
     Mcp2515.flagRecv = 1;
     Serial.println(F("UVRCAN: Rcv Int"));
+}
+
+
+
+void UVRCAN_Show(bool json) {  
+  if (Mcp2515.init_status == 1) {
+    if (json) {
+      // none
+#ifdef USE_WEBSERVER
+    } else {
+      WSContentSend_P(PSTR("{s}UVR CAN Module{m}{e}"));
+      WSContentSend_PD("{s}CAN Recv ID{m}%u{e}", Settings->UvrCanRecvId);
+      WSContentSend_PD("{s}CAN Send ID{m}%u{e}", Settings->UvrCanSendId);
+      WSContentSend_PD("{s}Dataset{m}%u{e}", Settings->UvrCanDataset);
+      WSContentSend_PD("{s}Error Status{m}%u{e}", Mcp2515.errors);
+      WSContentSend_P(PSTR("{s} {m} {e}"));      
+#endif  // USE_WEBSERVER
+    }
+  }
 }
 
 
@@ -367,7 +393,7 @@ bool Xdrv135(uint32_t function) {
         break;
         #ifdef USE_WEBSERVER
       case FUNC_WEB_SENSOR:
-//        UVRCAN_Show(0);
+        UVRCAN_Show(0);
         break;
       #endif  // USE_WEBSERVER
           }
@@ -603,6 +629,93 @@ void UVRCan_Dataset_2_Send (struct can_frame *canMsg, uint8_t message_nr) {
   }
 }
 
+// smart meter messages
+// total power, pv total power, consumption total
+void UVRCan_Dataset_3_Send (struct can_frame *canMsg, uint8_t message_nr) {
+  int intval = 0;
+  switch (message_nr) {
+    case 0: canMsg->can_id = ((uint32_t)Settings->UvrCanSendId | CAN_SEND_ID_DIGITAL);
+            canMsg->data[0] = 0x00;
+            canMsg->data[1] = 0x00;
+
+            canMsg->data[2] = 0x00;
+            canMsg->data[3] = 0x00;
+
+            canMsg->data[4] = 0x00;
+            canMsg->data[5] = 0x00;
+
+            canMsg->data[6] = 0x00;
+            canMsg->data[7] = 0x00;
+            break;
+
+    case 1: canMsg->can_id = ((uint32_t)Settings->UvrCanSendId | CAN_SEND_ID_ANALOG_1);
+            // Val1: total grid power [W]
+            // Val2: total pv power [W]
+            // Val3: total consumption power [W]
+            // Val4: total battery power [W]
+            intval = (int) (Sdm630MultiGetData(10));
+            canMsg->data[0] = (uint8_t) (intval & 0xFF);
+            canMsg->data[1] = (uint8_t) (intval >> 8 & 0xFF);
+
+            intval = (int) (Sdm630MultiGetData(11));
+            canMsg->data[2] = (uint8_t) (intval & 0xFF);
+            canMsg->data[3] = (uint8_t) (intval >> 8 & 0xFF);
+
+            intval = (int) (Sdm630MultiGetData(12));
+            canMsg->data[4] = (uint8_t) (intval & 0xFF);
+            canMsg->data[5] = (uint8_t) (intval >> 8 & 0xFF);
+
+            intval = (int) (Sdm630MultiGetData(13));
+            canMsg->data[6] = (uint8_t) (intval & 0xFF);
+            canMsg->data[7] = (uint8_t) (intval >> 8 & 0xFF);
+            break;
+
+    case 2: canMsg->can_id = ((uint32_t)Settings->UvrCanSendId | CAN_SEND_ID_ANALOG_2);
+            canMsg->data[0] = 0x00;
+            canMsg->data[1] = 0x00;
+
+            canMsg->data[2] = 0x00;
+            canMsg->data[3] = 0x00;
+
+            canMsg->data[4] = 0x00;
+            canMsg->data[5] = 0x00;
+
+            canMsg->data[6] = 0x00;
+            canMsg->data[7] = 0x00;
+            break;
+
+    case 3: canMsg->can_id = ((uint32_t)Settings->UvrCanSendId | CAN_SEND_ID_ANALOG_3);
+            canMsg->data[0] = 0x00;
+            canMsg->data[1] = 0x00;
+
+            canMsg->data[2] = 0x00;
+            canMsg->data[3] = 0x00;
+
+            canMsg->data[4] = 0x00;
+            canMsg->data[5] = 0x00;
+
+            canMsg->data[6] = 0x00;
+            canMsg->data[7] = 0x00;
+            break;
+
+    case 4: canMsg->can_id = ((uint32_t)Settings->UvrCanSendId | CAN_SEND_ID_ANALOG_4);
+            canMsg->data[0] = 0x00;
+            canMsg->data[1] = 0x00;
+
+            canMsg->data[2] = 0x00;
+            canMsg->data[3] = 0x00;
+
+            canMsg->data[4] = 0x00;
+            canMsg->data[5] = 0x00;
+
+            canMsg->data[6] = 0x00;
+            canMsg->data[7] = 0x00;
+            break;
+
+    default: 
+            break;
+  }
+}
 
 void UVRCan_Dataset_1_Recv (struct can_frame *canMsg, uint32_t message_id) {
   unsigned int intval = 0;

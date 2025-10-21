@@ -93,6 +93,7 @@ Examples :
 #define USE_ENERGY_SENSOR
 #define USE_DTSU666_H
 #define USE_DEYE_METER
+#define USE_SOLIS_METER
 #define USE_SPI
 #define USE_RULES
 #define USE_BURST_CONTROL
@@ -106,6 +107,8 @@ Examples :
 #define USE_I2C
 #define USE_DISPLAY_LCD
 #define USE_DISPLAY
+#define USE_SDM630_MULTI
+
 
 
 
@@ -115,7 +118,8 @@ Examples :
 #undef USE_SHT3X  
 #undef USE_DDSU666
 #undef USE_DISPLAY_MODES1TO5 
-#undef USE_BERRY
+//#undef USE_BERRY
+#define USE_BERRY
 #undef USE_APDS9960_GESTURE                  
 #undef USE_APDS9960_PROXIMITY                
 #undef USE_APDS9960_COLOR                    

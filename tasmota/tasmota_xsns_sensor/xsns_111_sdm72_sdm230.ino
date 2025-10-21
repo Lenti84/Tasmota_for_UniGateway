@@ -39,8 +39,6 @@
 #include <TasmotaModbus.h>
 TasmotaModbus *Sdm72Sdm230Modbus;
 
-uint8_t unused1;
-
 struct SDM72_SDM230 {
   float total_active_SDM72 = NAN;
   float total_active_SDM230 = NAN;

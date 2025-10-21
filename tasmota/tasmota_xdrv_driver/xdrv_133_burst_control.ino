@@ -40,7 +40,7 @@ ESP32Timer ITimer0(0);
 #define POWER_CTRL_NET_POWER_LIMIT         -300   // Leistungsgrenze fuer Beginn Heizen
 #define POWER_CTRL_MARGIN_INC              50     // power in W - max margin needed to increase pv heater power
 #define POWER_CTRL_MARGIN_DEC              30     // power in W - least margin needed to decrease pv heater power
-#define POWER_CTRL_DELAY                   2      // Regelzyklus in s
+#define POWER_CTRL_DELAY                   3      // Regelzyklus in s
 
 unsigned int ctrl_gate_periode = POWER_CTRL_PERIODE_LEN_DEFAULT;
 unsigned int ctrl_heater_power = POWER_CTRL_HEATER_POWER_DEFAULT;       // Leistung Heizstab in W
