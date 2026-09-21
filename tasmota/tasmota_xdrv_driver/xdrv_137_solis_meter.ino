@@ -62,6 +62,8 @@ struct SOLIS_METER {
   uint8_t   writebuffer[4];     // write buffer to check if writing was successful
 } SolisMeter;
 
+bool    SolisMeterPowerMode     = false;
+int16_t SolisMeterPowerSetpoint = 0;
 
 const uint8_t Solis_modbus_match[] {
   0x01,     // MODBUS address
@@ -89,6 +91,21 @@ const char HTTP_DRV_SOLIS_METER_DATA[] PROGMEM =
   "{s}%s " SOLIS_METER_STATUS "{m}%s {e}";
 #endif  // USE_WEBSERVER
 
+
+void SolisMeterSetMode(bool enable_manual)
+{
+  SolisMeterPowerMode = enable_manual;
+}
+
+void SolisMeterSetPower(int16_t manual_powerset_point)
+{
+  //AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Battery Power Setpoint 2 W: %d"), manual_powerset_point);
+  if (manual_powerset_point > 10000) SolisMeterPowerSetpoint = 10000;
+  else if (manual_powerset_point < -10000) SolisMeterPowerSetpoint = -10000;
+  else SolisMeterPowerSetpoint = manual_powerset_point;
+  //AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Battery Power Setpoint 3 W: %d"), SolisMeterPowerSetpoint);
+}
+
 void SolisMeterShow(bool json)
 {
   if(SolisMeter.init) {
@@ -104,9 +121,18 @@ void SolisMeterShow(bool json)
     //   ResponseAppend_P(PSTR(",\"%s\":{\"Id\":%02x,\"" D_JSON_USAGE "\":%s,\"" D_JSON_ACTIVE_POWERUSAGE "\":%s}"),
     //                    name, 1, heaterpercent, netpower);
 
+    //WSContentSend_PD(HTTP_DRV_SOLIS_METER_DATA, name, status);
+
 #ifdef USE_WEBSERVER
     //} else {
-      WSContentSend_PD(HTTP_DRV_SOLIS_METER_DATA, name, status);
+      WSContentSend_P(PSTR("{s}SOLIS inverter{m}{e}"));      
+      WSContentSend_PD("{s}connection{m}%s{e}", status);      
+      
+      if (!SolisMeterPowerMode) WSContentSend_P("{s}Set Mode{m}auto{e}");
+      else WSContentSend_P("{s}Set Mode{m}manual{e}");
+
+      WSContentSend_PD("{s}Set Power {m}%d{e}", SolisMeterPowerSetpoint);
+
 
 #endif  // USE_WEBSERVER
     //}
@@ -310,7 +336,13 @@ void SolisMeterEvery100ms(void)
 
 
         // total system power
-        value = -1 * Sdm630MultiGetData(10);
+        if (SolisMeterPowerMode) {
+          value = -1 * Sdm630MultiGetData(10) + SolisMeterPowerSetpoint;
+        }
+        else {
+          value = -1 * Sdm630MultiGetData(10);
+        }
+        
         sendbuf[0x0034*2+2+1] = ((uint8_t*)&value)[3];
         sendbuf[0x0034*2+2+2] = ((uint8_t*)&value)[2];
         sendbuf[0x0034*2+2+3] = ((uint8_t*)&value)[1];
