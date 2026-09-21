@@ -52,7 +52,7 @@
 #endif
 
 #ifndef UVRCAN_MAX_FRAMES
-  #define UVRCAN_MAX_FRAMES   8
+  #define UVRCAN_MAX_FRAMES   2
 #endif
 
 #ifndef CAN_KEEP_ALIVE_SECS
@@ -90,6 +90,7 @@
 #define CAN_RECV_ID_ANALOG_2    0x280           // Analogwerte  5...8
 #define CAN_RECV_ID_ANALOG_3    0x300           // Analogwerte  9...12 
 #define CAN_RECV_ID_ANALOG_4    0x380           // Analogwerte 13...16
+#define CAN_RECV_ID_ANALOG_NEW  0x1C0           // Analogwerte - neues Datenformat, alle Analogwerte in Botschaft 0x1Cx (x = Knoten)
 
 
 #define D_PRFX_UVRCAN "UvrCan"
@@ -112,9 +113,13 @@ struct UVRCAN_Struct {
   int8_t   init_status = 0;
   unsigned char flagRecv = 0;
   uint8_t  errors = 0; 
+  uint8_t framecnt = 0;
 } Mcp2515;
 
-struct can_frame canFrame;
+
+//struct can_frame canFrameData[16];
+//struct can_frame *canFrame = nullptr;
+struct can_frame canFrame[16];
 
 MCP2515 *mcp2515 = nullptr;
 
@@ -165,27 +170,27 @@ void UVRCAN_SetFilter(uint8_t RecvId) {
     /*
         set filter 0 ... 5
     */
-    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF0, false, ((uint32_t) RecvId | CAN_RECV_ID_ANALOG_4) )) {
+    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF0, false, ((uint32_t) RecvId | CAN_RECV_ID_DIGITAL_1) )) {
       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set setFilter RXF0"));
       return;
     }
-    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF1, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_4) )) {
+    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF1, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_NEW) )) {
       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set setFilter RXF1"));
       return;
     }
-    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF2, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_4) )) {
+    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF2, false, ((uint32_t)RecvId | CAN_RECV_ID_DIGITAL_1) )) {
       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set setFilter RXF2"));
       return;
     }
-    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF3, false, ((uint32_t)RecvId | CAN_RECV_ID_DIGITAL_1) )) {
+    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF3, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_NEW) )) {
       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set setFilter RXF3"));
       return;
     }
-    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF4, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_4) )) {
+    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF4, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_NEW) )) {
       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set setFilter RXF4"));
       return;
     }
-    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF5, false, ((uint32_t)RecvId | CAN_RECV_ID_DIGITAL_1) )) {
+    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF5, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_NEW) )) {
       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set setFilter RXF5"));
       return;
     }
@@ -202,16 +207,29 @@ void UVRCAN_Init(void) {
 
     mcp2515 = new MCP2515(Pin(GPIO_MCP2515_CS));    
 
-    attachInterrupt(digitalPinToInterrupt(Pin(GPIO_MCP2515_INT)), UVRCAN_ISR, FALLING); // start interrupt
+    //attachInterrupt(digitalPinToInterrupt(Pin(GPIO_MCP2515_INT)), UVRCAN_ISR, FALLING); // start interrupt
+    delay(1);
 
     if (MCP2515::ERROR_OK != mcp2515->reset()) {
       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to reset module"));
       return;
     }
     delay(10);
-    if (MCP2515::ERROR_OK != mcp2515->setBitrate(UVRCAN_BITRATE, UVRCAN_CLOCK)) {
-      AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set module bitrate"));
-      return;
+
+    for (int x=0;x<5;x++) {
+      if (x == 4) {
+        AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set module bitrate finally"));
+        return;
+      }
+      if (MCP2515::ERROR_OK != mcp2515->setBitrate(UVRCAN_BITRATE, UVRCAN_CLOCK)) {
+        AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set module bitrate"));
+        // return;
+        delay(10);
+      }
+      else {
+        AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Set module bitrate okay"));
+        x = 5;
+      }       
     }
     
     delay(10);
@@ -244,6 +262,8 @@ void UVRCAN_Init(void) {
       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set normal mode"));
       return;
     }
+
+    attachInterrupt(digitalPinToInterrupt(Pin(GPIO_MCP2515_INT)), UVRCAN_ISR, FALLING); // start interrupt
 
     AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Initialized"));
     Mcp2515.init_status = 1;
@@ -287,62 +307,114 @@ void UVRCAN_Write() {
 
 
 void UVRCAN_Read() {
-  uint8_t nCounter = 0;
-  bool checkRcv;
-  char mqtt_data[128];
-  unsigned int intval = 0;
-
-  Mcp2515.flagRecv = 0;
-  //checkRcv = mcp2515->checkReceive();
-  checkRcv = true;
-
-  AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv"));
-
-  while (checkRcv && nCounter <= UVRCAN_MAX_FRAMES) {
-    mcp2515->checkReceive();
-    nCounter++;
-    if (mcp2515->readMessage(&canFrame) == MCP2515::ERROR_OK) {
-      //Serial.println(F("UVRCAN: Frame Rcv"));
-      AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Frame Rcv"));
-
-      Mcp2515.lastFrameRecv = TasmotaGlobal.uptime;
-
-        char canMsg[17];
-        canMsg[0] = 0;
-        for (int i = 0; i < canFrame.can_dlc; i++) {
-          canMsg[i*2] = c2h(canFrame.data[i]>>4);
-          canMsg[i*2+1] = c2h(canFrame.data[i]);
-        }
-
-        if (canFrame.can_dlc > 0) {
-          canMsg[(canFrame.can_dlc - 1) * 2 + 2] = 0;
-        }
+    
+    while (Mcp2515.framecnt > 0) {        
+      //AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Frame Read"));
         
-        if(Settings->UvrCanDataset == 1) {
-          AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 1"));
-          if(canFrame.can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_DIGITAL_1)) UVRCan_Dataset_1_Recv(&canFrame, CAN_RECV_ID_DIGITAL_1);
-          else if(canFrame.can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_ANALOG_4)) UVRCan_Dataset_1_Recv(&canFrame, CAN_RECV_ID_ANALOG_4);
-        }
-        else if(Settings->UvrCanDataset == 2) {
-          AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 2"));
-          //if(canFrame.can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_DIGITAL_1)) UVRCan_Dataset_2_Recv(&canFrame, CAN_RECV_ID_DIGITAL_1);
-          //else if(canFrame.can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_ANALOG_4)) UVRCan_Dataset_2_Recv(&canFrame, CAN_RECV_ID_ANALOG_4);
-        }
+      if(Settings->UvrCanDataset == 1) {
+        //AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 1"));
+        if(canFrame[Mcp2515.framecnt].can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_DIGITAL_1)) UVRCan_Dataset_1_Recv(&canFrame[Mcp2515.framecnt], CAN_RECV_ID_DIGITAL_1);
+        else if(canFrame[Mcp2515.framecnt].can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_ANALOG_4)) UVRCan_Dataset_1_Recv(&canFrame[Mcp2515.framecnt], CAN_RECV_ID_ANALOG_4);
+      }
+      else if(Settings->UvrCanDataset == 2) {
+        AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 2 - nothing defined"));
+        //if(canFrame.can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_DIGITAL_1)) UVRCan_Dataset_2_Recv(&canFrame[Mcp2515.framecnt], CAN_RECV_ID_DIGITAL_1);
+        //else if(canFrame.can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_ANALOG_4)) UVRCan_Dataset_2_Recv(&canFrame[Mcp2515.framecnt], CAN_RECV_ID_ANALOG_4);
+      }
+      else if(Settings->UvrCanDataset == 3) {
+        //AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 3 - Recv Id %03X"), (uint16_t) canFrame[Mcp2515.framecnt-1].can_id);
+        if(canFrame[Mcp2515.framecnt-1].can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_ANALOG_1)) UVRCan_Dataset_3_Recv(&canFrame[Mcp2515.framecnt-1], CAN_RECV_ID_ANALOG_1);
+        else if(canFrame[Mcp2515.framecnt-1].can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_ANALOG_NEW)) UVRCan_Dataset_3_Recv(&canFrame[Mcp2515.framecnt-1], CAN_RECV_ID_ANALOG_NEW);          
+      }   
 
-    } else if (mcp2515->checkError()) {
-      uint8_t errFlags = mcp2515->getErrorFlags();
-      Mcp2515.errors = errFlags;
-      mcp2515->clearRXnOVRFlags();
-      AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Received error %d"), errFlags);
-      break;
+      Mcp2515.framecnt--;
     }
-  }
+    Mcp2515.flagRecv = 0;
+  
+
 }
+
+// void UVRCAN_Read() {
+//   uint8_t nCounter = 0;
+//   bool checkRcv;
+//   char mqtt_data[128];
+//   unsigned int intval = 0;
+
+//   Mcp2515.flagRecv = 0;
+//   //checkRcv = mcp2515->checkReceive();
+//   checkRcv = true;
+
+//   AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv"));
+
+//   while (checkRcv && nCounter <= UVRCAN_MAX_FRAMES) {
+//     mcp2515->checkReceive();
+//     nCounter++;
+//     if (mcp2515->readMessage(&canFrame) == MCP2515::ERROR_OK) {
+//       //Serial.println(F("UVRCAN: Frame Rcv"));
+//       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Frame Rcv"));
+
+//       Mcp2515.lastFrameRecv = TasmotaGlobal.uptime;
+
+//         char canMsg[17];
+//         canMsg[0] = 0;
+//         for (int i = 0; i < canFrame.can_dlc; i++) {
+//           canMsg[i*2] = c2h(canFrame.data[i]>>4);
+//           canMsg[i*2+1] = c2h(canFrame.data[i]);
+//         }
+
+//         if (canFrame.can_dlc > 0) {
+//           canMsg[(canFrame.can_dlc - 1) * 2 + 2] = 0;
+//         }
+        
+//         if(Settings->UvrCanDataset == 1) {
+//           AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 1"));
+//           if(canFrame.can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_DIGITAL_1)) UVRCan_Dataset_1_Recv(&canFrame, CAN_RECV_ID_DIGITAL_1);
+//           else if(canFrame.can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_ANALOG_4)) UVRCan_Dataset_1_Recv(&canFrame, CAN_RECV_ID_ANALOG_4);
+//         }
+//         else if(Settings->UvrCanDataset == 2) {
+//           AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 2"));
+//           //if(canFrame.can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_DIGITAL_1)) UVRCan_Dataset_2_Recv(&canFrame, CAN_RECV_ID_DIGITAL_1);
+//           //else if(canFrame.can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_ANALOG_4)) UVRCan_Dataset_2_Recv(&canFrame, CAN_RECV_ID_ANALOG_4);
+//         }
+//         else if(Settings->UvrCanDataset == 3) {
+//           AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Set3 - Recv Id %d"), (uint8_t) Settings->UvrCanRecvId);
+//           if(canFrame.can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_ANALOG_1)) UVRCan_Dataset_3_Recv(&canFrame, CAN_RECV_ID_ANALOG_1);
+//           else if(canFrame.can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_ANALOG_NEW)) UVRCan_Dataset_3_Recv(&canFrame, CAN_RECV_ID_ANALOG_NEW);          
+//         }
+
+//     } else if (mcp2515->checkError()) {
+//       uint8_t errFlags = mcp2515->getErrorFlags();
+//       Mcp2515.errors = errFlags;
+//       mcp2515->clearRXnOVRFlags();
+//       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Received error %d"), errFlags);
+//       break;
+//     }
+//   }
+// }
 
 
 void UVRCAN_ISR() {
-    Mcp2515.flagRecv = 1;
-    Serial.println(F("UVRCAN: Rcv Int"));
+  uint8_t nCounter = 0;
+  
+  //AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: ISR"));
+
+  while (nCounter < UVRCAN_MAX_FRAMES) {
+    mcp2515->checkReceive();
+    nCounter++;    
+    if (mcp2515->readMessage(&canFrame[Mcp2515.framecnt]) == MCP2515::ERROR_OK) {           
+      //AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Frame Rcv"));
+      Mcp2515.framecnt++;
+      Mcp2515.flagRecv = 1;
+    }      
+    else if (mcp2515->checkError()) {
+      uint8_t errFlags = mcp2515->getErrorFlags();
+      Mcp2515.errors = errFlags;
+      mcp2515->clearRXnOVRFlags();
+      //AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Received error %d"), errFlags);
+      break;
+    }
+  }
+  
 }
 
 
@@ -671,8 +743,13 @@ void UVRCan_Dataset_3_Send (struct can_frame *canMsg, uint8_t message_nr) {
             break;
 
     case 2: canMsg->can_id = ((uint32_t)Settings->UvrCanSendId | CAN_SEND_ID_ANALOG_2);
-            canMsg->data[0] = 0x00;
-            canMsg->data[1] = 0x00;
+            // Val1: Meter 2 - Power Phase 2 [W]
+            // Val2: none
+            // Val3: none
+            // Val4: none
+            intval = (int) (Sdm630MultiGetData(8));
+            canMsg->data[0] = (uint8_t) (intval & 0xFF);
+            canMsg->data[1] = (uint8_t) (intval >> 8 & 0xFF);
 
             canMsg->data[2] = 0x00;
             canMsg->data[3] = 0x00;
@@ -719,6 +796,8 @@ void UVRCan_Dataset_3_Send (struct can_frame *canMsg, uint8_t message_nr) {
 
 void UVRCan_Dataset_1_Recv (struct can_frame *canMsg, uint32_t message_id) {
   unsigned int intval = 0;
+
+  AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 1 - Recv Id %03X"), (uint16_t) canFrame[Mcp2515.framecnt-1].can_id);
 
   switch (message_id) {
     case CAN_RECV_ID_DIGITAL_1:
@@ -785,6 +864,98 @@ void UVRCan_Dataset_1_Recv (struct can_frame *canMsg, uint32_t message_id) {
   }
 }
 
+
+void UVRCan_Dataset_3_Recv (struct can_frame *canMsg, uint32_t message_id) {
+  uint16_t intval  = 0;
+  int16_t  sintval = 0;
+
+  AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 3 - Recv Id %03X"), (uint16_t) canFrame[Mcp2515.framecnt-1].can_id);
+  //AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 3"));
+  //AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: message_id: %u"), (message_id));
+  //AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: message_id entry: %u"), (message_id & ~0x1C0));
+
+  switch (message_id) {
+    case CAN_RECV_ID_DIGITAL_1:
+          // Dies wird dann in die ersten 4 bytes gesteckt, die Reihenfolge ist so: (1. byte, 2. byte usw.)
+          // 8 7 6 5 4 3 2 1 16 15 14 13 12 11 10 9 24 23 22 21 20 19 18 17 32 31 30 29 28 27 26 25
+          // Die Zahlen steht für die jeweilge Ausgangsnummer.
+
+          // data[0] - Digital Out  1...8
+          // data[1] - Digital Out  8...16
+          // data[2] - Digital Out 17...24
+          // data[3] - Digital Out 25...32
+          break;
+
+    case CAN_RECV_ID_ANALOG_1:    // CAN Analog Out 5 ... 8
+          AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 3 - Analog 2"));
+
+          // Battery Power Mode        int16	  0 - Auto, 1 - Manual            M0, Byte0..1
+          // Battery Power Setpoint    int16	  -10000 ... +10000 W	            M1, Byte2..3
+
+          // CAN Analog Out 5
+          // Battery Power Mode: 0 - Auto, 1 - Manual
+          intval = ((unsigned int) canMsg->data[1] << 8) + (unsigned int) canMsg->data[0];
+          if (intval > 1) intval = 1;
+          else if (intval < 0) intval = 0;
+          SolisMeterSetMode((bool) intval);          
+          if (intval = 0) AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Battery Power Mode: %s"), "auto");
+          else AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Battery Power Mode: %s"), "manual");
+
+          // CAN Analog Out 6
+          // Battery Power Setpoint: -10000 ... +10000 W
+          sintval = (int16_t) ((canMsg->data[3] << 8) | canMsg->data[2]);
+          if (sintval > 10000) sintval = 10000;
+          else if (sintval < -10000) sintval = -10000;
+          SolisMeterSetPower((int) sintval);          
+          AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Battery Power Setpoint  W: %d"), sintval);
+          
+          break;
+
+    case CAN_RECV_ID_ANALOG_NEW:    // CAN Analog Out 1 ... x - neues Format
+          AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 3 - Analog New"));
+          // Battery Power Mode        int16	  0 - Auto, 1 - Manual            Output 5
+          // Battery Power Setpoint    int16	  -10000 ... +10000 W	            Output 6
+          //AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: 3 New Data: %u"), (canMsg->data[1]));
+
+          switch ((unsigned int) canMsg->data[1]) {
+            
+            // CAN Analog Out 5
+            // Battery Power Mode: 0 - Auto, 1 - Manual
+            case 0x04:  intval = ((uint16_t) canMsg->data[5] << 8) + (uint16_t) canMsg->data[4];
+                        AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: %u"), (intval));
+                        if (intval > 1) intval = 1;
+                        else if (intval < 0) intval = 0; 
+
+                        if (intval == 0) {
+                          SolisMeterSetMode(false);
+                          AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Battery Power Mode: %s"), "auto");
+                        }
+                        else {
+                          SolisMeterSetMode(true);
+                          AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Battery Power Mode: %s"), "manual");
+                        }
+                        break;
+
+            // CAN Analog Out 6
+            // Battery Power Setpoint: -10000 ... +10000 W
+            case 0x05:  sintval = (int16_t) ((canMsg->data[5] << 8) | canMsg->data[4]);
+            //case 0x05:  sintval = (int) (((unsigned int) canMsg->data[5] << 8) + (unsigned int) canMsg->data[4]);
+            //case 0x05:  sintval = (int) (((int) canMsg->data[5] << 8) + (int) canMsg->data[4]);
+                        AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: %d"), (sintval));
+                        if (sintval > 10000) sintval = 10000;
+                        else if (sintval < -10000) sintval = -10000;
+
+                        SolisMeterSetPower(sintval);          
+                        AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Battery Power Setpoint  W: %d"), sintval);
+                        break;
+
+          }
+
+          break;
+
+    default: break;
+  }
+}
 
 #endif  // USE_UVRCAN
 #endif  // USE_SPI
