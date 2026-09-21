@@ -172,7 +172,7 @@ void Sdm630MultiEvery100ms(void)
 
   // always calc total values
   Sdm630_Multi.total_grid_power = Sdm630_Multi.meter[0].power_phase1 + Sdm630_Multi.meter[0].power_phase2 + Sdm630_Multi.meter[0].power_phase3;
-  Sdm630_Multi.total_pv_power   = Sdm630_Multi.meter[1].power_phase1 + Sdm630_Multi.meter[1].power_phase2 + Sdm630_Multi.meter[1].power_phase3 + Sdm630_Multi.meter[2].power_phase3;
+  Sdm630_Multi.total_pv_power   = Sdm630_Multi.meter[1].power_phase1 + Sdm630_Multi.meter[1].power_phase2 + Sdm630_Multi.meter[1].power_phase3 + Sdm630_Multi.meter[2].power_phase2 + Sdm630_Multi.meter[2].power_phase3;
   Sdm630_Multi.total_load_power = Sdm630_Multi.total_grid_power + Sdm630_Multi.total_pv_power - Sdm630_Multi.meter[2].power_phase1;
   Sdm630_Multi.total_battery_power = Sdm630_Multi.meter[2].power_phase1;
 }
@@ -215,7 +215,18 @@ void Sdm630MultiShow(bool json) {
   if (Sdm630_Multi.init == 1) {
 
     if (json) {
-      // none
+      char numberstr[8];
+      ResponseAppend_P(PSTR(",\"" "SDM630Multi" "\":{"));
+
+      dtostrfd(Sdm630_Multi.total_grid_power, 0, numberstr);
+      ResponseAppend_P(PSTR("\"" "TotGritPwr" "\":%s"), numberstr);
+      dtostrfd(Sdm630_Multi.total_pv_power, 0, numberstr);
+      ResponseAppend_P(PSTR("\"" "TotPvPwr" "\":%s"), numberstr);
+      dtostrfd(Sdm630_Multi.total_load_power, 0, numberstr);
+      ResponseAppend_P(PSTR("\"" "TotLoadPwr" "\":%s"), numberstr);
+      dtostrfd(Sdm630_Multi.total_battery_power, 0, numberstr);
+      ResponseAppend_P(PSTR("\"" "TotBatPwr" "\":%s"), numberstr);
+
 #ifdef USE_WEBSERVER
     } else {
       WSContentSend_P(PSTR("{s}SDM630 Multi - Meters{m}{e}"));
@@ -232,7 +243,7 @@ void Sdm630MultiShow(bool json) {
       WSContentSend_PD("{s}Meter 2 - Phase 2 - PV 1{m}%.0f W{e}", Sdm630_Multi.meter[1].power_phase2);
       WSContentSend_PD("{s}Meter 2 - Phase 3 - PV 1{m}%.0f W{e}", Sdm630_Multi.meter[1].power_phase3);
       WSContentSend_PD("{s}Meter 3 - Phase 1 - Battery{m}%.0f W{e}", Sdm630_Multi.meter[2].power_phase1);
-      WSContentSend_PD("{s}Meter 3 - Phase 2{m}%.0f W{e}", Sdm630_Multi.meter[2].power_phase2);
+      WSContentSend_PD("{s}Meter 3 - Phase 2 - PV 3{m}%.0f W{e}", Sdm630_Multi.meter[2].power_phase2);
       WSContentSend_PD("{s}Meter 3 - Phase 3 - PV 2{m}%.0f W{e}", Sdm630_Multi.meter[2].power_phase3);
 
       WSContentSend_P(PSTR("{s} {m} {e}"));      
