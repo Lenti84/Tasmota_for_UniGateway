@@ -51,11 +51,20 @@ struct SDM72_SDM230 {
 
 // 2D-array: address, modbus adress, target mem adress (register count)
 const uint32_t sdm72sdm230_register[][4] {
-  {0x0034, SDM72230_72_ADDR, (uint32_t) &Sdm72Sdm230.total_active_SDM72},   // SDM72 total system power     [W]
-  {0x0048, SDM72230_72_ADDR, (uint32_t) &Sdm72Sdm230.import_power_SDM72},   // SDM72 total import energy    [kWh]
-  {0x000C, SDM72230_230_ADDR, (uint32_t) &Sdm72Sdm230.total_active_SDM230}, // SDM230 power                 [W]
-  {0x0048, SDM72230_230_ADDR, (uint32_t) &Sdm72Sdm230.import_power_SDM230}  // SDM230 Import active energy  [kWh]
+  {0x2012, SDM72230_72_ADDR, (uint32_t) &Sdm72Sdm230.total_active_SDM72, 100},    // SDM72 total system power     [W]   - DTSU666 8210
+  {0x1028, SDM72230_72_ADDR, (uint32_t) &Sdm72Sdm230.import_power_SDM72, 1000,},  // SDM72 total import energy    [kWh]
+  {0x000C, SDM72230_230_ADDR, (uint32_t) &Sdm72Sdm230.total_active_SDM230, 1000}, // SDM230 power                 [W]
+  {0x0048, SDM72230_230_ADDR, (uint32_t) &Sdm72Sdm230.import_power_SDM230, 1000}  // SDM230 Import active energy  [kWh]
 };
+
+
+// // 2D-array: address, modbus adress, target mem adress (register count)
+// const uint32_t sdm72sdm230_register[][4] {
+//   {0x0034, SDM72230_72_ADDR, (uint32_t) &Sdm72Sdm230.total_active_SDM72},   // SDM72 total system power     [W]
+//   {0x0048, SDM72230_72_ADDR, (uint32_t) &Sdm72Sdm230.import_power_SDM72},   // SDM72 total import energy    [kWh]
+//   {0x000C, SDM72230_230_ADDR, (uint32_t) &Sdm72Sdm230.total_active_SDM230}, // SDM230 power                 [W]
+//   {0x0048, SDM72230_230_ADDR, (uint32_t) &Sdm72Sdm230.import_power_SDM230}  // SDM230 Import active energy  [kWh]
+// };
 
 /*********************************************************************************************/
 
@@ -92,7 +101,7 @@ void Sdm72Sdm230Every250ms(void)
         ((uint8_t*)&value)[0] = buffer[6];
 
         fptr = (float*) sdm72sdm230_register[Sdm72Sdm230.read_state][2];
-        *fptr = value;
+        *fptr = value * sdm72sdm230_register[Sdm72Sdm230.read_state][3] / 1000; 
 
         //AddLog(LOG_LEVEL_DEBUG, PSTR("SDM72230: val %f"), value);
         //AddLog(LOG_LEVEL_DEBUG, PSTR("SDM72230: total_active_SDM72 %f"), Sdm72Sdm230.total_active_SDM72);
