@@ -118,8 +118,8 @@ Examples :
 #undef USE_SHT3X  
 #undef USE_DDSU666
 #undef USE_DISPLAY_MODES1TO5 
-//#undef USE_BERRY
-#define USE_BERRY
+#undef USE_BERRY
+//#define USE_BERRY
 #undef USE_APDS9960_GESTURE                  
 #undef USE_APDS9960_PROXIMITY                
 #undef USE_APDS9960_COLOR                    
