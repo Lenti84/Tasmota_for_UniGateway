@@ -44,7 +44,7 @@
 #define XDRV_135              135
 
 #ifndef UVRCAN_BITRATE
-  #define UVRCAN_BITRATE      CAN_125KBPS
+  #define UVRCAN_BITRATE      CAN_50KBPS
 #endif
 
 #ifndef UVRCAN_CLOCK
@@ -170,11 +170,11 @@ void UVRCAN_SetFilter(uint8_t RecvId) {
     /*
         set filter 0 ... 5
     */
-    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF0, false, ((uint32_t) RecvId | CAN_RECV_ID_DIGITAL_1) )) {
+    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF0, false, ((uint32_t)RecvId | CAN_RECV_ID_DIGITAL_1) )) {
       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set setFilter RXF0"));
       return;
     }
-    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF1, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_NEW) )) {
+    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF1, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_1) )) {
       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set setFilter RXF1"));
       return;
     }
@@ -182,15 +182,15 @@ void UVRCAN_SetFilter(uint8_t RecvId) {
       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set setFilter RXF2"));
       return;
     }
-    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF3, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_NEW) )) {
+    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF3, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_2) )) {
       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set setFilter RXF3"));
       return;
     }
-    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF4, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_NEW) )) {
+    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF4, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_3) )) {
       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set setFilter RXF4"));
       return;
     }
-    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF5, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_NEW) )) {
+    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF5, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_4) )) {
       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set setFilter RXF5"));
       return;
     }
@@ -309,12 +309,13 @@ void UVRCAN_Write() {
 void UVRCAN_Read() {
     
     while (Mcp2515.framecnt > 0) {        
-      //AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Frame Read"));
+      AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Frame Read"));
         
       if(Settings->UvrCanDataset == 1) {
-        //AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 1"));
-        if(canFrame[Mcp2515.framecnt].can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_DIGITAL_1)) UVRCan_Dataset_1_Recv(&canFrame[Mcp2515.framecnt], CAN_RECV_ID_DIGITAL_1);
-        else if(canFrame[Mcp2515.framecnt].can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_ANALOG_4)) UVRCan_Dataset_1_Recv(&canFrame[Mcp2515.framecnt], CAN_RECV_ID_ANALOG_4);
+        //AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 1"));        
+        if(canFrame[Mcp2515.framecnt-1].can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_DIGITAL_1)) UVRCan_Dataset_1_Recv(&canFrame[Mcp2515.framecnt-1], CAN_RECV_ID_DIGITAL_1);
+        else if(canFrame[Mcp2515.framecnt-1].can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_ANALOG_4)) UVRCan_Dataset_1_Recv(&canFrame[Mcp2515.framecnt-1], CAN_RECV_ID_ANALOG_4);
+        else AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 1 - unknown Recv Id %03X"), (uint16_t) canFrame[Mcp2515.framecnt-1].can_id);
       }
       else if(Settings->UvrCanDataset == 2) {
         AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 2 - nothing defined"));
@@ -325,6 +326,7 @@ void UVRCAN_Read() {
         //AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 3 - Recv Id %03X"), (uint16_t) canFrame[Mcp2515.framecnt-1].can_id);
         if(canFrame[Mcp2515.framecnt-1].can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_ANALOG_1)) UVRCan_Dataset_3_Recv(&canFrame[Mcp2515.framecnt-1], CAN_RECV_ID_ANALOG_1);
         else if(canFrame[Mcp2515.framecnt-1].can_id == (Settings->UvrCanRecvId | CAN_RECV_ID_ANALOG_NEW)) UVRCan_Dataset_3_Recv(&canFrame[Mcp2515.framecnt-1], CAN_RECV_ID_ANALOG_NEW);          
+        else AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 1 - unknown Recv Id %03X"), (uint16_t) canFrame[Mcp2515.framecnt-1].can_id);
       }   
 
       Mcp2515.framecnt--;
