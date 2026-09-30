@@ -242,6 +242,7 @@ enum UserSelectablePins {
   GPIO_MODBUSRELAY_TX, GPIO_MODBUSRELAY_TX_ENA,
   GPIO_MODBUSRELAY_RX, GPIO_MODBUSRELAY_RX_ENA,
 #endif                      
+  GPIO_MCP2515_INT,                    // MCP2515 Interrupt
   GPIO_SENSOR_END };
 
 // Error as warning to rethink GPIO usage with max 2045
@@ -521,7 +522,11 @@ const char kSensorNames[] PROGMEM =
 #endif
   D_VID6608_F "|" D_VID6608_CW "|"
   D_SENSOR_MKSKYBLU_TX "|" D_SENSOR_MKSKYBLU_RX "|"
-  D_SENSOR_MBS_RX_ENA "|" D_MODBUSRELAY_TX "|" D_MODBUSRELAY_TX_ENA "|" D_MODBUSRELAY_RX "|" D_MODBUSRELAY_RX_ENA "|"
+  D_SENSOR_MBS_RX_ENA "|"
+#ifdef USE_MODBUS_RELAY
+  D_MODBUSRELAY_TX "|" D_MODBUSRELAY_TX_ENA "|" D_MODBUSRELAY_RX "|" D_MODBUSRELAY_RX_ENA "|"
+#endif
+  "MCP2515 INT|"
 ;
 
 const char kSensorNamesFixed[] PROGMEM =
@@ -659,9 +664,12 @@ const uint16_t kGpioNiceList[] PROGMEM = {
 #ifdef USE_SDCARD
   AGPIO(GPIO_SDCARD_CS) + AGMAX(MAX_SPI),        // SDCard in SPI mode
 #endif  // USE_SDCARD
-#if defined(USE_MCP2515) || defined(USE_CANSNIFFER)
+#if defined(USE_MCP2515) || defined(USE_CANSNIFFER) || defined(USE_UVRCAN)
   AGPIO(GPIO_MCP2515_CS),
 #endif  // USE_MCP2515
+#ifdef USE_UVRCAN
+  AGPIO(GPIO_MCP2515_INT),
+#endif
 #ifdef USE_MCP23XXX_DRV
   AGPIO(GPIO_MCP23SXX_CS) + AGMAX(MAX_MCP23XXX),
 #endif  // USE_MCP23XXX_DRV
