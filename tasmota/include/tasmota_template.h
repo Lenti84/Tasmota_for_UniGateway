@@ -243,6 +243,10 @@ enum UserSelectablePins {
   GPIO_MODBUSRELAY_RX, GPIO_MODBUSRELAY_RX_ENA,
 #endif                      
   GPIO_MCP2515_INT,                    // MCP2515 Interrupt
+  GPIO_SDM72_SDM230_TX, GPIO_SDM72_SDM230_RX, // Combined SDM72/SDM230 Modbus interface
+  GPIO_DCOM_MB_LT_TX, GPIO_DCOM_MB_LT_RX, GPIO_DCOM_MB_LT_ENA, // Daikin DCOM LT MB
+  GPIO_SDM630_MULTI_TX, GPIO_SDM630_MULTI_RX, // SDM630 multi Modbus interface
+  GPIO_SOLIS_METER_TX, GPIO_SOLIS_METER_RX, GPIO_SOLIS_METER_ENA, // Solis meter bridge
   GPIO_SENSOR_END };
 
 // Error as warning to rethink GPIO usage with max 2045
@@ -527,6 +531,10 @@ const char kSensorNames[] PROGMEM =
   D_MODBUSRELAY_TX "|" D_MODBUSRELAY_TX_ENA "|" D_MODBUSRELAY_RX "|" D_MODBUSRELAY_RX_ENA "|"
 #endif
   "MCP2515 INT|"
+  "SDM72/230 Tx|SDM72/230 Rx|"
+  "DCOM LT Tx|DCOM LT Rx|DCOM LT ENA|"
+  "SDM630 Multi Tx|SDM630 Multi Rx|"
+  "Solis Meter Tx|Solis Meter Rx|Solis Meter ENA|"
 ;
 
 const char kSensorNamesFixed[] PROGMEM =
@@ -982,6 +990,10 @@ const uint16_t kGpioNiceList[] PROGMEM = {
   AGPIO(GPIO_SDM630_TX),                         // SDM630 Serial interface
   AGPIO(GPIO_SDM630_RX),                         // SDM630 Serial interface
 #endif
+#ifdef USE_SDM630_MULTI
+  AGPIO(GPIO_SDM630_MULTI_TX),                   // SDM630 multi Modbus interface
+  AGPIO(GPIO_SDM630_MULTI_RX),
+#endif
 #ifdef USE_DDS2382
   AGPIO(GPIO_DDS2382_TX),                        // DDS2382 Serial interface
   AGPIO(GPIO_DDS2382_RX),                        // DDS2382 Serial interface
@@ -1020,6 +1032,20 @@ const uint16_t kGpioNiceList[] PROGMEM = {
 #ifdef USE_SDM72
   AGPIO(GPIO_SDM72_TX),                          // SDM72 Serial interface
   AGPIO(GPIO_SDM72_RX),                          // SDM72 Serial interface
+#endif
+#ifdef USE_SOLIS_METER
+  AGPIO(GPIO_SOLIS_METER_TX),
+  AGPIO(GPIO_SOLIS_METER_RX),
+  AGPIO(GPIO_SOLIS_METER_ENA),
+#endif
+#ifdef USE_DCOM_LT_MB
+  AGPIO(GPIO_DCOM_MB_LT_TX),
+  AGPIO(GPIO_DCOM_MB_LT_RX),
+  AGPIO(GPIO_DCOM_MB_LT_ENA),
+#endif
+#ifdef USE_SDM72_SDM230
+  AGPIO(GPIO_SDM72_SDM230_TX),                   // Combined SDM72/SDM230 Modbus interface
+  AGPIO(GPIO_SDM72_SDM230_RX),
 #endif
   AGPIO(GPIO_ZEROCROSS),
 #ifdef USE_SDM230
@@ -3519,6 +3545,7 @@ enum SupportedModulesESP32 {
   ODROID_GO,
   ESP32_SOLO,
   WT32_ETH01,
+  UNIGATEWAY,
   MAXMODULE };
 
 // Default module settings
@@ -3536,6 +3563,9 @@ const uint8_t kModuleNiceList[] PROGMEM = {
 #ifdef USE_WT32_ETH01
   WT32_ETH01,
 #endif  // USE_WT32_ETH01
+#if defined(USE_SPI) && defined(USE_UVRCAN)
+  UNIGATEWAY,
+#endif
 };
 
 // !!! Update this list in the same order as kModuleNiceList !!!
@@ -3553,6 +3583,9 @@ const char kModuleNames[] PROGMEM =
 #ifdef USE_WT32_ETH01
   "WT32-Eth01|"
 #endif  // USE_WT32_ETH01
+#if defined(USE_SPI) && defined(USE_UVRCAN)
+  "UniGateway|"
+#endif
   ;
 
 // !!! Update this list in the same order as SupportedModulesESP32 !!!
@@ -3743,6 +3776,52 @@ const mytmplt kModules[] PROGMEM = {
     0                            // Flag
   },
 #endif  // USE_WT32_ETH01
+
+#if defined(USE_SPI) && defined(USE_UVRCAN)
+  {                              // UNIGATEWAY - ESP32 with MCP2515 for UVR CAN (driver 135)
+    AGPIO(GPIO_USER),            // 0       (I)O                GPIO0, ADC2_CH1, TOUCH1, RTC_GPIO11, CLK_OUT1, EMAC_TX_CLK
+    AGPIO(GPIO_USER),            // 1       IO     TXD0         GPIO1, U0TXD, CLK_OUT3, EMAC_RXD2
+    AGPIO(GPIO_USER),            // 2       IO                  GPIO2, ADC2_CH2, TOUCH2, RTC_GPIO12, HSPIWP, HS2_DATA0, SD_DATA0
+    AGPIO(GPIO_USER),            // 3       IO     RXD0         GPIO3, U0RXD, CLK_OUT2
+    AGPIO(GPIO_USER),            // 4       IO                  GPIO4, ADC2_CH0, TOUCH0, RTC_GPIO10, HSPIHD, HS2_DATA1, SD_DATA1, EMAC_TX_ER
+    AGPIO(GPIO_USER),            // 5       IO                  GPIO5, VSPICS0, HS1_DATA6, EMAC_RX_CLK
+                                 // 6       IO                  Remapped to 28
+                                 // 7       IO                  Remapped to 29
+                                 // 8       IO                  Remapped to 30
+    AGPIO(GPIO_USER),            // 9       IO                  GPIO9, Flash D2, U1RXD
+    AGPIO(GPIO_USER),            // 10      IO                  GPIO10, Flash D3, U1TXD
+                                 // 11      IO                  Remapped to 31
+    AGPIO(GPIO_SPI_MISO),            // 12      (I)O                GPIO12, ADC2_CH5, TOUCH5, RTC_GPIO15, MTDI, HSPIQ, HS2_DATA2, SD_DATA2, EMAC_TXD3       (If driven High, flash voltage (VDD_SDIO) is 1.8V not default 3.3V. Has internal pull-down, so unconnected = Low = 3.3V. May prevent flashing and/or booting if 3.3V flash is connected and pulled high. See ESP32 datasheet for more details.)
+    AGPIO(GPIO_SPI_MOSI),            // 13      IO                  GPIO13, ADC2_CH4, TOUCH4, RTC_GPIO14, MTCK, HSPID, HS2_DATA3, SD_DATA3, EMAC_RX_ER
+    AGPIO(GPIO_SPI_CLK),            // 14      IO                  GPIO14, ADC2_CH6, TOUCH6, RTC_GPIO16, MTMS, HSPICLK, HS2_CLK, SD_CLK, EMAC_TXD2
+    AGPIO(GPIO_MCP2515_CS),            // 15      (I)O                GPIO15, ADC2_CH3, TOUCH3, MTDO, HSPICS0, RTC_GPIO13, HS2_CMD, SD_CMD, EMAC_RXD3         (If driven Low, silences boot messages from normal boot. Has internal pull-up, so unconnected = High = normal output.)
+    AGPIO(GPIO_USER),            // 16      IO                  GPIO16, HS1_DATA4, U2RXD, EMAC_CLK_OUT
+    AGPIO(GPIO_USER),            // 17      IO                  GPIO17, HS1_DATA5, U2TXD, EMAC_CLK_OUT_180
+    AGPIO(GPIO_USER),            // 18      IO                  GPIO18, VSPICLK, HS1_DATA7
+    AGPIO(GPIO_USER),            // 19      IO                  GPIO19, VSPIQ, U0CTS, EMAC_TXD0
+    0,                           // 20
+    AGPIO(GPIO_USER),            // 21      IO                  GPIO21, VSPIHD, EMAC_TX_EN
+    AGPIO(GPIO_USER),            // 22      IO      LED         GPIO22, VSPIWP, U0RTS, EMAC_TXD1
+    AGPIO(GPIO_USER),            // 23      IO                  GPIO23, VSPID, HS1_STROBE
+    0,                           // 24
+    AGPIO(GPIO_USER),            // 25      IO                  GPIO25, DAC_1, ADC2_CH8, RTC_GPIO6, EMAC_RXD0
+    AGPIO(GPIO_USER),            // 26      IO                  GPIO26, DAC_2, ADC2_CH9, RTC_GPIO7, EMAC_RXD1
+    AGPIO(GPIO_USER),            // 27      IO                  GPIO27, ADC2_CH7, TOUCH7, RTC_GPIO17, EMAC_RX_DV
+    0,                           // 6       IO                  GPIO6, Flash CLK
+    0,                           // 7       IO                  GPIO7, Flash D0
+    0,                           // 8       IO                  GPIO8, Flash D1
+    0,                           // 11      IO                  GPIO11, Flash CMD
+    AGPIO(GPIO_USER),            // 32      IO                  GPIO32, XTAL_32K_P (32.768 kHz crystal oscillator input), ADC1_CH4, TOUCH9, RTC_GPIO9
+    AGPIO(GPIO_USER),            // 33      IO                  GPIO33, XTAL_32K_N (32.768 kHz crystal oscillator output), ADC1_CH5, TOUCH8, RTC_GPIO8
+    AGPIO(GPIO_USER),            // 34      I   NO PULLUP       GPIO34, ADC1_CH6, RTC_GPIO4
+    AGPIO(GPIO_MCP2515_INT),            // 35      I   NO PULLUP       GPIO35, ADC1_CH7, RTC_GPIO5
+    AGPIO(GPIO_USER),            // 36      I   NO PULLUP       GPIO36, SENSOR_VP, ADC_H, ADC1_CH0, RTC_GPIO0
+    0,                           // 37          NO PULLUP
+    0,                           // 38          NO PULLUP
+    AGPIO(GPIO_USER),            // 39      I   NO PULLUP       GPIO39, SENSOR_VN, ADC1_CH3, ADC_H, RTC_GPIO3
+    0                            // Flag
+  },
+#endif  // USE_SPI && USE_UVRCAN
 
 };
 

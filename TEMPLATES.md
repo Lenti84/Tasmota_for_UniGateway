@@ -8,6 +8,43 @@
 Find below the available templates as of August 2026. More template information can be found in the [Tasmota Device Templates Repository](http://blakadder.github.io/templates)
 
 ## Adapter Board
+
+### UniGateway (ESP32, UVR CAN)
+
+This project includes a built-in **UniGateway** module for the classic ESP32.
+With `USE_SPI` and `USE_UVRCAN` enabled, select **UniGateway** under
+**Configuration → Configure Module** and save to restart with its pin assignment.
+
+| ESP32 pin | Function | MCP2515 pin |
+| --- | --- | --- |
+| GPIO12 | SPI MISO 1 | SO |
+| GPIO13 | SPI MOSI 1 | SI |
+| GPIO14 | SPI CLK 1 | SCK |
+| GPIO15 | MCP2515 CS | CS |
+| GPIO35 | MCP2515 INT | INT |
+
+The assignment follows driver 135. Other usable pins remain user-configurable.
+
+For three SDM630 meters, enable `USE_SDM630_MULTI` and assign **SDM630 Multi Tx**,
+**SDM630 Multi Rx**, and **NrgMbs Tx Ena** (RS485 transmit enable) to the wired pins.
+The driver uses 19200 baud and Modbus addresses 2, 3, and 4 by default; override
+`SDM630_MULTI_SPEED`, `SDM630_1_ADDR`, `SDM630_2_ADDR`, and `SDM630_3_ADDR` as needed.
+Its totals follow the source installation: meter 1 is grid, meter 2 is PV,
+and meter 3 is battery on phase 1 and additional PV on phases 2 and 3.
+
+For the Solis inverter bridge, enable `USE_SOLIS_METER` together with
+`USE_SDM630_MULTI` and assign **Solis Meter Tx**, **Solis Meter Rx**, and
+**Solis Meter ENA** to a separate RS485 transceiver. See [SOLIS_METER.md](SOLIS_METER.md)
+for protocol details and the upstream energy placeholders.
+
+JSON template for this project's ESP32 build without "USE_MODBUS_RELAY":
+
+```json
+{"NAME":"UniGateway","GPIO":[1,1,1,1,1,1,1,1,672,704,736,8000,1,1,1,1,0,1,1,1,0,1,1,1,0,0,0,0,1,1,1,12320,1,0,0,1],"FLAG":0,"BASE":1}
+```
+
+With USE_MODBUS_RELAY enabled, the MCP2515 INT value at GPIO35 is 12448 instead. These custom GPIO IDs apply to this firmware, not stock Tasmota.
+
 ```
 3DStar ESP-OpenTherm v1.1    {"NAME":"3DS_OpenTherm","GPIO":[0,0,0,0,0,0,0,0,4960,0,4928,0,0,0],"FLAG":0,"BASE":18}
 IoTextra Analog              {"NAME":"IoTextra Analog","GPIO":[1,1,1,1,1,1,1,1,1,1,1,640,608,1,1,1,1,1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1],"FLAG":0,"BASE":1}

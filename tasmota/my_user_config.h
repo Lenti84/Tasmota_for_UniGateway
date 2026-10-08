@@ -981,6 +981,9 @@
 #define USE_PZEM_AC                              // Add support for PZEM014,016 Energy monitor (+1k1 code)
 #define USE_PZEM_DC                              // Add support for PZEM003,017 Energy monitor (+1k1 code)
 #define USE_MCP39F501                            // Add support for MCP39F501 Energy monitor as used in Shelly 2 (+3k1 code)
+//#define USE_SOLIS_METER                          // Solis SDM630 meter bridge (requires USE_SDM630_MULTI)
+//#define USE_DCOM_LT_MB                            // Daikin DCOM LT MB Modbus driver
+//#define USE_SDM72_SDM230                          // Combined SDM72/SDM230 Modbus sensor (9600 baud, addresses 1 and 2)
 //#define USE_SDM72                                // Add support for Eastron SDM72-Modbus energy monitor (+0k3 code)
   #define SDM72_SPEED          9600              // SDM72-Modbus RS485 serial speed (default: 9600 baud)
   // #define SDM72_IMPEXP                            // Show additonal import/export active energy and power in MQTT and Web (+0k5 code)
@@ -989,6 +992,7 @@
 //#define USE_SDM230                               // Add support for Eastron SDM230-Modbus energy monitor (+1k6 code)
   #define SDM230_SPEED         9600              // SDM230-Modbus RS485 serial speed (default: 9600 baud)
 //  #define SDM230_MORE_REGS                        // read more registers (see xnrg_21_sdm230.ino, may cause timing issues (at your own risk, +0k4 code))
+//#define USE_SDM630_MULTI                         // Three SDM630 meters (19200 baud, addresses 2, 3 and 4)
 //#define USE_SDM630                               // Add support for Eastron SDM630-Modbus energy monitor (+0k6 code)
   #define SDM630_SPEED         9600              // SDM630-Modbus RS485 serial speed (default: 9600 baud)
 //  #define SDM630_IMPORT                          // Show import active energy in MQTT and Web (+0k3 code)

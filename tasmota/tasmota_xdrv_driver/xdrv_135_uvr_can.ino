@@ -43,9 +43,12 @@
 
 #define XDRV_135              135
 
+#ifdef USE_DCOM_LT_MB
+#define UvrCanDcom DcomMbLt
+#else
 // Temporary internal adapters for compile testing without the UniGateway
-// DCOM, SDM and Solis drivers. Measurements are zero; setters only update RAM.
-#warning UVRCAN uses internal DCOM/SDM/Solis dummies for compile testing
+// DCOM driver. Measurements are zero; setters only update RAM.
+#warning UVRCAN uses an internal DCOM dummy without USE_DCOM_LT_MB
 static struct {
   bool circ_pump_run = false;
   bool compressor_run = false;
@@ -69,7 +72,8 @@ static struct {
   uint16_t target_quietmode = 0;
   uint16_t target_dhwbooster = 0;
   uint16_t target_leavingwaterheattemp = 0;
-} UvrCanDummyDcom;
+} UvrCanDcom;
+#endif
 
 static bool UvrCanDummySolisManual = false;
 static int UvrCanDummySolisPower = 0;
@@ -82,9 +86,33 @@ void UvrCanDummySolisSetPower(int power) {
   UvrCanDummySolisPower = power;
 }
 
+// #ifdef USE_SDM72_SDM230
+// float Sdm72Sdm230GetData(uint8_t index);
+
+// int UvrCanSdm72Sdm230GetPower(uint8_t index) {
+//   float power = Sdm72Sdm230GetData(index);
+//   return isfinite(power) ? (int)power : 0;
+// }
+// #endif
+
+// Dataset 3 requires meter values not provided by the combined SDM72/SDM230 sensor.
 float UvrCanDummySdmGetData(uint32_t index) {
   (void)index;
   return 0.0f;
+}
+
+#include "mcp2515.h"
+
+const CAN_SPEED kUvrCanBitrates[] = {
+  CAN_10KBPS, CAN_20KBPS, CAN_50KBPS, CAN_125KBPS, CAN_250KBPS, CAN_500KBPS
+};
+const uint16_t kUvrCanBitrateKbps[] = { 10, 20, 50, 125, 250, 500 };
+
+bool UvrCanValidBitrate(uint32_t bitrate) {
+  for (uint32_t i = 0; i < sizeof(kUvrCanBitrates) / sizeof(kUvrCanBitrates[0]); i++) {
+    if (bitrate == kUvrCanBitrates[i]) { return true; }
+  }
+  return false;
 }
 
 #ifndef UVRCAN_BITRATE
@@ -115,6 +143,7 @@ struct {
   uint32_t dataset = 1;
   uint32_t send_id = 1;
   uint32_t recv_id = 1;
+  uint32_t bitrate = UVRCAN_BITRATE;
 } UvrCanSettings;
 uint32_t UvrCanSettingsCrc = 0;
 
@@ -122,6 +151,7 @@ void UVRCAN_SettingsLoad(bool erase) {
   UvrCanSettings.dataset = 1;
   UvrCanSettings.send_id = 1;
   UvrCanSettings.recv_id = 1;
+  UvrCanSettings.bitrate = UvrCanValidBitrate(UVRCAN_BITRATE) ? UVRCAN_BITRATE : CAN_50KBPS;
   UvrCanSettingsCrc = 0;
 #ifdef USE_UFILESYS
   char key[] = UVRCAN_SETTINGS_KEY;
@@ -138,12 +168,14 @@ void UVRCAN_SettingsLoad(bool erase) {
   uint32_t dataset = root.getUInt(PSTR("Dataset"), 1);
   uint32_t send_id = root.getUInt(PSTR("SendId"), 1);
   uint32_t recv_id = root.getUInt(PSTR("RecvId"), 1);
+  uint32_t bitrate = root.getUInt(PSTR("Bitrate"), UvrCanSettings.bitrate);
+  if (UvrCanValidBitrate(bitrate)) { UvrCanSettings.bitrate = bitrate; }
   if ((dataset >= 1) && (dataset <= 3)) { UvrCanSettings.dataset = dataset; }
   if ((send_id >= 1) && (send_id <= UVRCAN_MAXID)) { UvrCanSettings.send_id = send_id; }
   if ((recv_id >= 1) && (recv_id <= UVRCAN_MAXID)) { UvrCanSettings.recv_id = recv_id; }
   // Rewrite invalid values on the next save.
   if ((dataset == UvrCanSettings.dataset) && (send_id == UvrCanSettings.send_id) &&
-      (recv_id == UvrCanSettings.recv_id)) {
+      (recv_id == UvrCanSettings.recv_id) && (bitrate == UvrCanSettings.bitrate)) {
     UvrCanSettingsCrc = GetCfgCrc32((uint8_t*)&UvrCanSettings, sizeof(UvrCanSettings));
   }
 #else
@@ -155,8 +187,8 @@ void UVRCAN_SettingsSave(void) {
 #ifdef USE_UFILESYS
   uint32_t crc = GetCfgCrc32((uint8_t*)&UvrCanSettings, sizeof(UvrCanSettings));
   if (crc == UvrCanSettingsCrc) { return; }
-  Response_P(PSTR("{\"" UVRCAN_SETTINGS_KEY "\":{\"Dataset\":%u,\"SendId\":%u,\"RecvId\":%u}}"),
-             UvrCanSettings.dataset, UvrCanSettings.send_id, UvrCanSettings.recv_id);
+  Response_P(PSTR("{\"" UVRCAN_SETTINGS_KEY "\":{\"Dataset\":%u,\"SendId\":%u,\"RecvId\":%u,\"Bitrate\":%u}}"),
+             UvrCanSettings.dataset, UvrCanSettings.send_id, UvrCanSettings.recv_id, UvrCanSettings.bitrate);
   if (UfsJsonSettingsWrite(ResponseData())) {
     UvrCanSettingsCrc = crc;
   } else {
@@ -207,7 +239,6 @@ const char kUvrCanCommands[] PROGMEM = "|" D_CMD_UVRCAN_DATASET
                                        "|" D_CMD_UVRCAN_RECVID;
 void (* const UvrCanCommand[])(void) PROGMEM = { &CmndUvrCanDataset, &CmndUvrCanSendId, &CmndUvrCanRecvId };
 
-#include "mcp2515.h"
 
 struct UVRCAN_Struct {
   uint32_t lastFrameRecv = 0;
@@ -271,15 +302,15 @@ void UVRCAN_SetFilter(uint8_t RecvId) {
     /*
         set filter 0 ... 5
     */
-    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF0, false, ((uint32_t)RecvId | CAN_RECV_ID_DIGITAL_1) )) {
+    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF0, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_NEW) )) {
       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set setFilter RXF0"));
       return;
     }
-    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF1, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_1) )) {
+    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF1, false, ((uint32_t)RecvId | CAN_RECV_ID_DIGITAL_1) )) {
       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set setFilter RXF1"));
       return;
     }
-    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF2, false, ((uint32_t)RecvId | CAN_RECV_ID_DIGITAL_1) )) {
+    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF2, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_1) )) {
       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set setFilter RXF2"));
       return;
     }
@@ -322,7 +353,7 @@ void UVRCAN_Init(void) {
         AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set module bitrate finally"));
         return;
       }
-      if (MCP2515::ERROR_OK != mcp2515->setBitrate(UVRCAN_BITRATE, UVRCAN_CLOCK)) {
+      if (MCP2515::ERROR_OK != mcp2515->setBitrate((CAN_SPEED)UvrCanSettings.bitrate, UVRCAN_CLOCK)) {
         AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set module bitrate"));
         // return;
         delay(10);
@@ -525,6 +556,12 @@ void UVRCAN_Show(bool json) {
       WSContentSend_P(PSTR("{s}UVR CAN Module{m}{e}"));
       WSContentSend_PD("{s}CAN Recv ID{m}%u{e}", UvrCanSettings.recv_id);
       WSContentSend_PD("{s}CAN Send ID{m}%u{e}", UvrCanSettings.send_id);
+        for (uint32_t i = 0; i < sizeof(kUvrCanBitrates) / sizeof(kUvrCanBitrates[0]); i++) {
+          if (UvrCanSettings.bitrate == kUvrCanBitrates[i]) {
+            WSContentSend_PD("{s}CAN Bitrate (konfiguriert){m}%u kbit/s{e}", (uint32_t)kUvrCanBitrateKbps[i]);
+            break;
+          }
+        }
       WSContentSend_PD("{s}Dataset{m}%u{e}", UvrCanSettings.dataset);
       WSContentSend_PD("{s}Error Status{m}%u{e}", Mcp2515.errors);
       WSContentSend_P(PSTR("{s} {m} {e}"));      
@@ -538,8 +575,96 @@ void UVRCAN_Show(bool json) {
  * Interface
 \*********************************************************************************************/
 
+#ifdef USE_WEBSERVER
+bool UvrCanWebValue(const char* name, uint32_t maximum, uint32_t* value) {
+  String arg = Webserver->arg(name);
+  if (!arg.length() || arg.length() > 2) { return false; }
+  uint32_t number = 0;
+  for (uint32_t i = 0; i < arg.length(); i++) {
+    if (arg[i] < '0' || arg[i] > '9') { return false; }
+    number = number * 10 + arg[i] - '0';
+  }
+  if (number < 1 || number > maximum) { return false; }
+  *value = number;
+  return true;
+}
+
+void HandleUvrCanConfiguration(void) {
+  if (!HttpCheckPriviledgedAccess()) { return; }
+  const char* message = nullptr;
+  if (Webserver->method() == HTTP_POST && Webserver->hasArg(F("save"))) {
+    uint32_t dataset, send_id, recv_id, bitrate;
+    if (UvrCanWebValue("dataset", 3, &dataset) &&
+        UvrCanWebValue("send_id", UVRCAN_MAXID, &send_id) &&
+        UvrCanWebValue("recv_id", UVRCAN_MAXID, &recv_id) &&
+        UvrCanWebValue("bitrate", CAN_500KBPS, &bitrate) && UvrCanValidBitrate(bitrate)) {
+      bool filter_changed = recv_id != UvrCanSettings.recv_id;
+      bool bitrate_changed = bitrate != UvrCanSettings.bitrate;
+      UvrCanSettings.dataset = dataset;
+      UvrCanSettings.send_id = send_id;
+      UvrCanSettings.recv_id = recv_id;
+      UvrCanSettings.bitrate = bitrate;
+      UVRCAN_SettingsSave();
+      if (filter_changed && Mcp2515.init_status) { UVRCAN_SetFilter(recv_id); }
+#ifdef USE_UFILESYS
+      bool saved = UvrCanSettingsCrc == GetCfgCrc32((uint8_t*)&UvrCanSettings, sizeof(UvrCanSettings));
+      if (saved && bitrate_changed) {
+        WebRestart(1);
+        return;
+      }
+      message = saved
+        ? "Einstellungen gespeichert."
+        : "Einstellungen uebernommen, aber Speichern fehlgeschlagen.";
+#else
+      message = "Einstellungen uebernommen. Ohne Dateisystem gehen sie beim Neustart verloren.";
+#endif
+    } else {
+      message = "Ungueltige Eingabe: Datensatz 1 bis 3, IDs 1 bis 62 und eine angebotene Bitrate waehlen. Keine Aenderung uebernommen.";
+    }
+  }
+
+  WSContentStart_P(PSTR("UVR CAN"));
+  WSContentSendStyle();
+  if (message) { WSContentSend_P(PSTR("<p>%s</p>"), message); }
+  WSContentSend_P(PSTR("<form method='post' action='uvrcan'><fieldset><legend>UVR CAN</legend>"
+    "<p><label for='dataset'>Datensatz</label><select id='dataset' name='dataset'>"));
+  const char* labels[] = { "1 - DCOM", "2 - Energie", "3 - SDM / Solis" };
+  for (uint32_t i = 1; i <= 3; i++) {
+    WSContentSend_P(PSTR("<option value='%u'%s>%s</option>"), i,
+      (i == UvrCanSettings.dataset) ? " selected" : "", labels[i - 1]);
+  }
+  WSContentSend_P(PSTR("</select></p><p><label for='bitrate'>CAN-Bitrate</label>"
+    "<select id='bitrate' name='bitrate'>"));
+  for (uint32_t i = 0; i < sizeof(kUvrCanBitrates) / sizeof(kUvrCanBitrates[0]); i++) {
+    WSContentSend_P(PSTR("<option value='%u'%s>%u kbit/s</option>"), (uint32_t)kUvrCanBitrates[i],
+      (UvrCanSettings.bitrate == kUvrCanBitrates[i]) ? " selected" : "", (uint32_t)kUvrCanBitrateKbps[i]);
+  }
+    WSContentSend_P(PSTR("</select></p><p>Nach erfolgreichem Speichern einer geaenderten Bitrate startet das Geraet automatisch neu.</p>"
+    "<p><label for='send_id'>Sende-ID (1-62)</label>"
+    "<input id='send_id' name='send_id' type='number' min='1' max='62' required value='%u'></p>"
+    "<p><label for='recv_id'>Empfangs-ID (1-62)</label>"
+    "<input id='recv_id' name='recv_id' type='number' min='1' max='62' required value='%u'></p>"
+    "</fieldset><p><button name='save' value='1' type='submit'>" D_SAVE "</button></p></form>"),
+    UvrCanSettings.send_id, UvrCanSettings.recv_id);
+  WSContentSpaceButton(BUTTON_CONFIGURATION);
+  WSContentStop();
+}
+#endif  // USE_WEBSERVER
+
 bool Xdrv135(uint32_t function) {
   bool result = false;
+
+#ifdef USE_WEBSERVER
+  // Configuration must also be reachable before CAN hardware is configured.
+  if (FUNC_WEB_ADD_BUTTON == function) {
+    WSContentSend_P(HTTP_FORM_BUTTON, PSTR("uvrcan"), PSTR("UVR CAN"));
+    return false;
+  }
+  if (FUNC_WEB_ADD_HANDLER == function) {
+    WebServer_on(PSTR("/uvrcan"), HandleUvrCanConfiguration);
+    return false;
+  }
+#endif
 
   if (FUNC_PRE_INIT == function) {
     UVRCAN_SettingsLoad(false);
@@ -590,23 +715,23 @@ void UVRCan_Dataset_1_Send (struct can_frame *canMsg, uint8_t message_nr) {
     case 0: canMsg->can_id = ((uint32_t)UvrCanSettings.send_id | CAN_SEND_ID_DIGITAL);
 
             intval = 0x0000;
-            if (UvrCanDummyDcom.circ_pump_run) intval | 0x0001;
+            if (UvrCanDcom.circ_pump_run) intval |= 0x0001;
             else intval & ~0x0001;
-            if (UvrCanDummyDcom.compressor_run) intval | 0x0002;
+            if (UvrCanDcom.compressor_run) intval |= 0x0002;
             else intval & ~0x0002;      
-            if (UvrCanDummyDcom.booster_heat_run) intval | 0x0004;
+            if (UvrCanDcom.booster_heat_run) intval |= 0x0004;
             else intval & ~0x0004;   
-            if (UvrCanDummyDcom.desinfection_op) intval | 0x0008;
+            if (UvrCanDcom.desinfection_op) intval |= 0x0008;
             else intval & ~0x0008;
-            if (UvrCanDummyDcom.defrost_startup) intval | 0x0010;
+            if (UvrCanDcom.defrost_startup) intval |= 0x0010;
             else intval & ~0x0010;
-            if (UvrCanDummyDcom.hot_start) intval | 0x0020;
+            if (UvrCanDcom.hot_start) intval |= 0x0020;
             else intval & ~0x0020;    
-            if (UvrCanDummyDcom.valve_3way) intval | 0x0040;
+            if (UvrCanDcom.valve_3way) intval |= 0x0040;
             else intval & ~0x0040;
-            if (UvrCanDummyDcom.op_mode == 1) intval | 0x0080;
+            if (UvrCanDcom.op_mode == 1) intval |= 0x0080;
             else intval & ~0x0080;
-            if (UvrCanDummyDcom.op_mode == 2) intval | 0x0100;
+            if (UvrCanDcom.op_mode == 2) intval |= 0x0100;
             else intval & ~0x0100;
             canMsg->data[0] = (uint8_t) (intval & 0xFF);
             canMsg->data[1] = (uint8_t) (intval >> 8 & 0xFF);
@@ -624,7 +749,7 @@ void UVRCan_Dataset_1_Send (struct can_frame *canMsg, uint8_t message_nr) {
 
     case 1: canMsg->can_id = ((uint32_t)UvrCanSettings.send_id | CAN_SEND_ID_ANALOG_1);
     
-            canMsg->data[0] = (uint8_t) (UvrCanDummyDcom.unit_error & 0xFF);
+            canMsg->data[0] = (uint8_t) (UvrCanDcom.unit_error & 0xFF);
             canMsg->data[1] = 0x00;
 
             canMsg->data[2] = 0x00;
@@ -640,38 +765,38 @@ void UVRCan_Dataset_1_Send (struct can_frame *canMsg, uint8_t message_nr) {
 
     case 2: canMsg->can_id = ((uint32_t)UvrCanSettings.send_id | CAN_SEND_ID_ANALOG_2);
     
-            intval = (int) (UvrCanDummyDcom.leaving_water_PHE_temp * 10);
+            intval = (int) (UvrCanDcom.leaving_water_PHE_temp * 10);
             canMsg->data[0] = (uint8_t) (intval & 0xFF);
             canMsg->data[1] = (uint8_t) (intval >> 8 & 0xFF);
 
-            intval = (int) (UvrCanDummyDcom.leaving_water_BHU_temp * 10);
+            intval = (int) (UvrCanDcom.leaving_water_BHU_temp * 10);
             canMsg->data[2] = (uint8_t) (intval & 0xFF);
             canMsg->data[3] = (uint8_t) (intval >> 8 & 0xFF);
 
-            intval = (int) (UvrCanDummyDcom.return_water_temp * 10);
+            intval = (int) (UvrCanDcom.return_water_temp * 10);
             canMsg->data[4] = (uint8_t) (intval & 0xFF);
             canMsg->data[5] = (uint8_t) (intval >> 8 & 0xFF);
 
-            intval = (int) (UvrCanDummyDcom.dom_hot_water_temp * 10);
+            intval = (int) (UvrCanDcom.dom_hot_water_temp * 10);
             canMsg->data[6] = (uint8_t) (intval & 0xFF);
             canMsg->data[7] = (uint8_t) (intval >> 8 & 0xFF);
 
             break;
 
     case 3: canMsg->can_id = ((uint32_t)UvrCanSettings.send_id | CAN_SEND_ID_ANALOG_3);    
-            intval = (int) (UvrCanDummyDcom.outside_air_temp * 10);
+            intval = (int) (UvrCanDcom.outside_air_temp * 10);
             canMsg->data[0] = (uint8_t) (intval & 0xFF);
             canMsg->data[1] = (uint8_t) (intval >> 8 & 0xFF);
 
-            intval = (int) (UvrCanDummyDcom.liquid_refrig_temp * 10);
+            intval = (int) (UvrCanDcom.liquid_refrig_temp * 10);
             canMsg->data[2] = (uint8_t) (intval & 0xFF);
             canMsg->data[3] = (uint8_t) (intval >> 8 & 0xFF);
 
-            intval = (int) UvrCanDummyDcom.flow_rate;
+            intval = (int) UvrCanDcom.flow_rate;
             canMsg->data[4] = (uint8_t) (intval & 0xFF);
             canMsg->data[5] = (uint8_t) (intval >> 8 & 0xFF);
 
-            intval = (int) (UvrCanDummyDcom.room_temp * 10);
+            intval = (int) (UvrCanDcom.room_temp * 10);
             canMsg->data[6] = (uint8_t) (intval & 0xFF);
             canMsg->data[7] = (uint8_t) (intval >> 8 & 0xFF);
     
@@ -680,11 +805,13 @@ void UVRCan_Dataset_1_Send (struct can_frame *canMsg, uint8_t message_nr) {
     case 4: canMsg->can_id = ((uint32_t)UvrCanSettings.send_id | CAN_SEND_ID_ANALOG_4);
 
             #ifdef USE_SDM72_SDM230
-              intval = (int) (UvrCanDummySdmGetData(1));
+              //intval = UvrCanSdm72Sdm230GetPower(1);
+              intval = Sdm72Sdm230GetData(1);
               canMsg->data[0] = (uint8_t) (intval & 0xFF);
               canMsg->data[1] = (uint8_t) (intval >> 8 & 0xFF);
 
-              intval = (int) (UvrCanDummySdmGetData(2));
+              //intval = UvrCanSdm72Sdm230GetPower(2);
+              intval = Sdm72Sdm230GetData(2);
               canMsg->data[2] = (uint8_t) (intval & 0xFF);
               canMsg->data[3] = (uint8_t) (intval >> 8 & 0xFF);
 
@@ -926,28 +1053,28 @@ void UVRCan_Dataset_1_Recv (struct can_frame *canMsg, uint32_t message_id) {
           if (canMsg->data[1] & 0x01) intval = 1;
           else if (canMsg->data[1] & 0x02) intval = 2;
           else intval = 0;
-          UvrCanDummyDcom.target_opmode = (uint16_t) intval;
+          UvrCanDcom.target_opmode = (uint16_t) intval;
           //Serial.print("Operation Mode: "); Serial.println(intval, DEC);
           AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Operation Mode: %d"), intval);
 
           // Space Heating/Cooling On/Off
           if (canMsg->data[1] & 0x04) intval = 1;
           else intval = 0;
-          UvrCanDummyDcom.target_spaceheatcool = (uint16_t) intval;
+          UvrCanDcom.target_spaceheatcool = (uint16_t) intval;
           //Serial.print("Space Heating/Cooling: "); Serial.println(intval, DEC);
           AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Space Heating/Cooling: %d"), intval);
 
           // Quiet Mode Operation
           if (canMsg->data[1] & 0x08) intval = 1;
           else intval = 0;
-          UvrCanDummyDcom.target_quietmode = (uint16_t) intval;
+          UvrCanDcom.target_quietmode = (uint16_t) intval;
           //Serial.print("Quiet Mode Operation: "); Serial.println(intval, DEC);
           AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Quiet Mode Operation: %d"), intval);
 
           // DHW Booster Mode On/Off
           if (canMsg->data[1] & 0x10) intval = 1;
           else intval = 0;
-          UvrCanDummyDcom.target_dhwbooster = (uint16_t) intval;
+          UvrCanDcom.target_dhwbooster = (uint16_t) intval;
           //Serial.print("DHW Booster Mode On/Off: "); Serial.println(intval, DEC);
           AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: DHW Booster Mode On/Off: %d"), intval);
 
@@ -961,9 +1088,9 @@ void UVRCan_Dataset_1_Recv (struct can_frame *canMsg, uint32_t message_id) {
           intval = ((unsigned int) canMsg->data[1] << 8) + (unsigned int) canMsg->data[0];
           if (intval > 550) intval = 550;
           else if (intval < 250) intval = 250;
-          UvrCanDummyDcom.target_leavingwaterheattemp = (uint16_t) intval;
-          //Serial.print("Leaving Water Main Heating Setpoint 0.1°C: "); Serial.println(UvrCanDummyDcom.target_leavingwaterheattemp, DEC);
-          AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Leaving Water Main Heating Setpoint 0.1°C: %d"), UvrCanDummyDcom.target_leavingwaterheattemp);
+          UvrCanDcom.target_leavingwaterheattemp = (uint16_t) intval;
+          //Serial.print("Leaving Water Main Heating Setpoint 0.1°C: "); Serial.println(UvrCanDcom.target_leavingwaterheattemp, DEC);
+          AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Leaving Water Main Heating Setpoint 0.1°C: %d"), UvrCanDcom.target_leavingwaterheattemp);
           
           break;
 
