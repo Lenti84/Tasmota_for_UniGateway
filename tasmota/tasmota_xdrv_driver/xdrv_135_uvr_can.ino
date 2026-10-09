@@ -458,8 +458,9 @@ void UVRCAN_Read() {
       else if(UvrCanSettings.dataset == 3) {
         //AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 3 - Recv Id %03X"), (uint16_t) canFrame[Mcp2515.framecnt-1].can_id);
         if(canFrame[Mcp2515.framecnt-1].can_id == (UvrCanSettings.recv_id | CAN_RECV_ID_ANALOG_1)) UVRCan_Dataset_3_Recv(&canFrame[Mcp2515.framecnt-1], CAN_RECV_ID_ANALOG_1);
+        else if(canFrame[Mcp2515.framecnt-1].can_id == (UvrCanSettings.recv_id | CAN_RECV_ID_ANALOG_2)) UVRCan_Dataset_3_Recv(&canFrame[Mcp2515.framecnt-1], CAN_RECV_ID_ANALOG_2);
         else if(canFrame[Mcp2515.framecnt-1].can_id == (UvrCanSettings.recv_id | CAN_RECV_ID_ANALOG_NEW)) UVRCan_Dataset_3_Recv(&canFrame[Mcp2515.framecnt-1], CAN_RECV_ID_ANALOG_NEW);          
-        else AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Recv Dataset 1 - unknown Recv Id %03X"), (uint16_t) canFrame[Mcp2515.framecnt-1].can_id);
+        else AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Recv Dataset 3 - unknown Recv Id %03X"), (uint16_t) canFrame[Mcp2515.framecnt-1].can_id);
       }   
 
       Mcp2515.framecnt--;
@@ -640,13 +641,13 @@ void HandleUvrCanConfiguration(void) {
     WSContentSend_P(PSTR("<option value='%u'%s>%s</option>"), i,
       (i == UvrCanSettings.dataset) ? " selected" : "", labels[i - 1]);
   }
-  WSContentSend_P(PSTR("</select></p><p><label for='bitrate'>CAN-Bitrate</label>"
+  WSContentSend_P(PSTR("</select></p><p><label for='bitrate'>CAN-Bitrate (Neustart)</label>"
     "<select id='bitrate' name='bitrate'>"));
   for (uint32_t i = 0; i < sizeof(kUvrCanBitrates) / sizeof(kUvrCanBitrates[0]); i++) {
     WSContentSend_P(PSTR("<option value='%u'%s>%u kbit/s</option>"), (uint32_t)kUvrCanBitrates[i],
       (UvrCanSettings.bitrate == kUvrCanBitrates[i]) ? " selected" : "", (uint32_t)kUvrCanBitrateKbps[i]);
   }
-    WSContentSend_P(PSTR("</select></p><p>Nach erfolgreichem Speichern einer geaenderten Bitrate startet das Geraet automatisch neu.</p>"
+    WSContentSend_P(PSTR("</select></p>"
     "<p><label for='send_id'>Sende-ID (1-62)</label>"
     "<input id='send_id' name='send_id' type='number' min='1' max='62' required value='%u'></p>"
     "<p><label for='recv_id'>Empfangs-ID (1-62)</label>"
@@ -1117,6 +1118,7 @@ void UVRCan_Dataset_3_Recv (struct can_frame *canMsg, uint32_t message_id) {
 
   switch (message_id) {
     case CAN_RECV_ID_DIGITAL_1:
+          AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 3 - Digital 1 - no data set"));
           // Dies wird dann in die ersten 4 bytes gesteckt, die Reihenfolge ist so: (1. byte, 2. byte usw.)
           // 8 7 6 5 4 3 2 1 16 15 14 13 12 11 10 9 24 23 22 21 20 19 18 17 32 31 30 29 28 27 26 25
           // Die Zahlen steht für die jeweilge Ausgangsnummer.
@@ -1127,29 +1129,35 @@ void UVRCan_Dataset_3_Recv (struct can_frame *canMsg, uint32_t message_id) {
           // data[3] - Digital Out 25...32
           break;
 
-    case CAN_RECV_ID_ANALOG_1:    // CAN Analog Out 5 ... 8
-          AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 3 - Analog 2"));
+    case CAN_RECV_ID_ANALOG_1:    // CAN Analog Out 1 ... 4
+          AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 3 - Analog 1"));
 
           // Battery Power Mode        int16	  0 - Auto, 1 - Manual            M0, Byte0..1
           // Battery Power Setpoint    int16	  -10000 ... +10000 W	            M1, Byte2..3
 
-          // CAN Analog Out 5
+          // CAN Analog Out 3
           // Battery Power Mode: 0 - Auto, 1 - Manual
-          intval = ((unsigned int) canMsg->data[1] << 8) + (unsigned int) canMsg->data[0];
-          if (intval > 1) intval = 1;
-          else if (intval < 0) intval = 0;
-          SolisMeterSetMode((bool) intval);          
-          if (intval = 0) AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Battery Power Mode: %s"), "auto");
-          else AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Battery Power Mode: %s"), "manual");
-
-          // CAN Analog Out 6
+          intval = ((unsigned int) canMsg->data[5] << 8) + (unsigned int) canMsg->data[4];
+          AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Battery Power Mode: %d"), intval);         
+          if (intval == 0) {                        
+            SolisMeterSetMode(false);
+          }
+          else {                        
+            SolisMeterSetMode(true);
+          }
+      
+          // CAN Analog Out 4
           // Battery Power Setpoint: -10000 ... +10000 W
-          sintval = (int16_t) ((canMsg->data[3] << 8) | canMsg->data[2]);
+          sintval = (int16_t) ((canMsg->data[7] << 8) | canMsg->data[6]);
           if (sintval > 10000) sintval = 10000;
           else if (sintval < -10000) sintval = -10000;
-          SolisMeterSetMode((int) sintval);          
+          SolisMeterSetPower((int) sintval);          
           AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Battery Power Setpoint  W: %d"), sintval);
           
+          break;
+
+    case CAN_RECV_ID_ANALOG_2:    // CAN Analog Out 5 ... 8
+          AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 3 - Analog 2 - no data set"));
           break;
 
     case CAN_RECV_ID_ANALOG_NEW:    // CAN Analog Out 1 ... x - neues Format
@@ -1160,10 +1168,10 @@ void UVRCan_Dataset_3_Recv (struct can_frame *canMsg, uint32_t message_id) {
 
           switch ((unsigned int) canMsg->data[1]) {
             
-            // CAN Analog Out 5
+            // CAN Analog Out 3
             // Battery Power Mode: 0 - Auto, 1 - Manual
-            case 0x04:  intval = ((uint16_t) canMsg->data[5] << 8) + (uint16_t) canMsg->data[4];
-                        AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: %u"), (intval));
+            case 0x02:  intval = ((uint16_t) canMsg->data[5] << 8) + (uint16_t) canMsg->data[4];
+                        AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: CAN 3 Out = %u"), (intval));
                         if (intval > 1) intval = 1;
                         else if (intval < 0) intval = 0; 
 
@@ -1177,9 +1185,9 @@ void UVRCan_Dataset_3_Recv (struct can_frame *canMsg, uint32_t message_id) {
                         }
                         break;
 
-            // CAN Analog Out 6
+            // CAN Analog Out 4
             // Battery Power Setpoint: -10000 ... +10000 W
-            case 0x05:  sintval = (int16_t) ((canMsg->data[5] << 8) | canMsg->data[4]);
+            case 0x03:  sintval = (int16_t) ((canMsg->data[5] << 8) | canMsg->data[4]);
             //case 0x05:  sintval = (int) (((unsigned int) canMsg->data[5] << 8) + (unsigned int) canMsg->data[4]);
             //case 0x05:  sintval = (int) (((int) canMsg->data[5] << 8) + (int) canMsg->data[4]);
                         AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: %d"), (sintval));

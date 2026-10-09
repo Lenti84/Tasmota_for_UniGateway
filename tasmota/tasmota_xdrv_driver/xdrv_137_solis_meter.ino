@@ -67,7 +67,7 @@ struct SOLIS_METER {
   uint8_t   writebuffer[4];     // write buffer to check if writing was successful
 } SolisMeter;
 
-bool    SolisMeterPowerMode     = false;
+bool    SolisMeterPowerMode     = false;      // false = auto mode
 int16_t SolisMeterPowerSetpoint = 0;
 
 const uint8_t Solis_modbus_match[] {
@@ -97,18 +97,21 @@ const char HTTP_DRV_SOLIS_METER_DATA[] PROGMEM =
 #endif  // USE_WEBSERVER
 
 
+// false = auto, true = manual (use power setpoint)
 void SolisMeterSetMode(bool enable_manual)
 {
   SolisMeterPowerMode = enable_manual;
+  if (SolisMeterPowerMode == true) AddLog(LOG_LEVEL_INFO, PSTR("SolisMeter: Mode manual"));
+  else AddLog(LOG_LEVEL_INFO, PSTR("SolisMeter: Mode auto"));
 }
 
 void SolisMeterSetPower(int16_t manual_powerset_point)
 {
-  //AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Battery Power Setpoint 2 W: %d"), manual_powerset_point);
+  //AddLog(LOG_LEVEL_DEBUG, PSTR("SolisMeter: Battery Power Setpoint 2 W: %d"), manual_powerset_point);
   if (manual_powerset_point > 10000) SolisMeterPowerSetpoint = 10000;
   else if (manual_powerset_point < -10000) SolisMeterPowerSetpoint = -10000;
   else SolisMeterPowerSetpoint = manual_powerset_point;
-  //AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Battery Power Setpoint 3 W: %d"), SolisMeterPowerSetpoint);
+  AddLog(LOG_LEVEL_INFO, PSTR("SolisMeter: Battery Power Setpoint: %d W"), SolisMeterPowerSetpoint);
 }
 
 void SolisMeterShow(bool json)
