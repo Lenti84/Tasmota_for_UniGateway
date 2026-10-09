@@ -44,7 +44,7 @@
 #define XDRV_135              135
 
 #ifndef UVRCAN_BITRATE
-  #define UVRCAN_BITRATE      CAN_50KBPS
+  #define UVRCAN_BITRATE      CAN_125KBPS
 #endif
 
 #ifndef UVRCAN_CLOCK
@@ -170,15 +170,15 @@ void UVRCAN_SetFilter(uint8_t RecvId) {
     /*
         set filter 0 ... 5
     */
-    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF0, false, ((uint32_t)RecvId | CAN_RECV_ID_DIGITAL_1) )) {
+    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF0, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_NEW) )) {
       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set setFilter RXF0"));
       return;
     }
-    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF1, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_1) )) {
+    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF1, false, ((uint32_t)RecvId | CAN_RECV_ID_DIGITAL_1) )) {
       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set setFilter RXF1"));
       return;
     }
-    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF2, false, ((uint32_t)RecvId | CAN_RECV_ID_DIGITAL_1) )) {
+    if (MCP2515::ERROR_OK != mcp2515->setFilter(MCP2515::RXF2, false, ((uint32_t)RecvId | CAN_RECV_ID_ANALOG_1) )) {
       AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Failed to set setFilter RXF2"));
       return;
     }
