@@ -43,6 +43,11 @@
 
 #define XDRV_135              135
 
+#ifdef USE_SDM630_MULTI
+// Implemented by xsns_122_sdm630_multi.ino.
+float Sdm630MultiGetData(uint8_t index);
+#endif
+
 #ifdef USE_DCOM_LT_MB
 #define UvrCanDcom DcomMbLt
 #else
@@ -75,16 +80,16 @@ static struct {
 } UvrCanDcom;
 #endif
 
-static bool UvrCanDummySolisManual = false;
-static int UvrCanDummySolisPower = 0;
+// static bool UvrCanDummySolisManual = false;
+// static int UvrCanDummySolisPower = 0;
 
-void UvrCanDummySolisSetMode(bool manual) {
-  UvrCanDummySolisManual = manual;
-}
+// void UvrCanDummySolisSetMode(bool manual) {
+//   UvrCanDummySolisManual = manual;
+// }
 
-void UvrCanDummySolisSetPower(int power) {
-  UvrCanDummySolisPower = power;
-}
+// void UvrCanDummySolisSetPower(int power) {
+//   UvrCanDummySolisPower = power;
+// }
 
 // #ifdef USE_SDM72_SDM230
 // float Sdm72Sdm230GetData(uint8_t index);
@@ -96,10 +101,10 @@ void UvrCanDummySolisSetPower(int power) {
 // #endif
 
 // Dataset 3 requires meter values not provided by the combined SDM72/SDM230 sensor.
-float UvrCanDummySdmGetData(uint32_t index) {
-  (void)index;
-  return 0.0f;
-}
+// float UvrCanDummySdmGetData(uint32_t index) {
+//   (void)index;
+//   return 0.0f;
+// }
 
 #include "mcp2515.h"
 
@@ -333,8 +338,10 @@ void UVRCAN_Init(void) {
   if (PinUsed(GPIO_MCP2515_CS, GPIO_ANY) && PinUsed(GPIO_MCP2515_INT, GPIO_ANY) && TasmotaGlobal.spi_enabled) {
     AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Init"));
     
-    SPI._spi_num = HSPI;        // hack in SPI.h: class SPIClass --> int8_t _spi_num must be public to be set to HSPI
-                                       // hack in SPI.h: class SPIClass --> uint8_t pinSet must be public to be set to HSPI
+    // MCP2515 uses the global SPI instance; initialize it with Tasmota's bus 1 pins.
+    // we have to use HSPI
+    if (nullptr == SpiBegin(1)) { return; }
+
     SPI.setFrequency(1000000);
 
     mcp2515 = new MCP2515(Pin(GPIO_MCP2515_CS));    
@@ -435,16 +442,16 @@ void UVRCAN_Write() {
 void UVRCAN_Read() {
     
     while (Mcp2515.framecnt > 0) {        
-      AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Frame Read"));
+      AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Frame Read"));
         
       if(UvrCanSettings.dataset == 1) {
         //AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 1"));        
         if(canFrame[Mcp2515.framecnt-1].can_id == (UvrCanSettings.recv_id | CAN_RECV_ID_DIGITAL_1)) UVRCan_Dataset_1_Recv(&canFrame[Mcp2515.framecnt-1], CAN_RECV_ID_DIGITAL_1);
         else if(canFrame[Mcp2515.framecnt-1].can_id == (UvrCanSettings.recv_id | CAN_RECV_ID_ANALOG_4)) UVRCan_Dataset_1_Recv(&canFrame[Mcp2515.framecnt-1], CAN_RECV_ID_ANALOG_4);
-        else AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 1 - unknown Recv Id %03X"), (uint16_t) canFrame[Mcp2515.framecnt-1].can_id);
+        else AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Recv Dataset 1 - unknown Recv Id %03X"), (uint16_t) canFrame[Mcp2515.framecnt-1].can_id);
       }
       else if(UvrCanSettings.dataset == 2) {
-        AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 2 - nothing defined"));
+        AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Recv Dataset 2 - nothing defined"));
         //if(canFrame.can_id == (UvrCanSettings.recv_id | CAN_RECV_ID_DIGITAL_1)) UVRCan_Dataset_2_Recv(&canFrame[Mcp2515.framecnt], CAN_RECV_ID_DIGITAL_1);
         //else if(canFrame.can_id == (UvrCanSettings.recv_id | CAN_RECV_ID_ANALOG_4)) UVRCan_Dataset_2_Recv(&canFrame[Mcp2515.framecnt], CAN_RECV_ID_ANALOG_4);
       }
@@ -452,7 +459,7 @@ void UVRCAN_Read() {
         //AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 3 - Recv Id %03X"), (uint16_t) canFrame[Mcp2515.framecnt-1].can_id);
         if(canFrame[Mcp2515.framecnt-1].can_id == (UvrCanSettings.recv_id | CAN_RECV_ID_ANALOG_1)) UVRCan_Dataset_3_Recv(&canFrame[Mcp2515.framecnt-1], CAN_RECV_ID_ANALOG_1);
         else if(canFrame[Mcp2515.framecnt-1].can_id == (UvrCanSettings.recv_id | CAN_RECV_ID_ANALOG_NEW)) UVRCan_Dataset_3_Recv(&canFrame[Mcp2515.framecnt-1], CAN_RECV_ID_ANALOG_NEW);          
-        else AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 1 - unknown Recv Id %03X"), (uint16_t) canFrame[Mcp2515.framecnt-1].can_id);
+        else AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Recv Dataset 1 - unknown Recv Id %03X"), (uint16_t) canFrame[Mcp2515.framecnt-1].can_id);
       }   
 
       Mcp2515.framecnt--;
@@ -558,7 +565,7 @@ void UVRCAN_Show(bool json) {
       WSContentSend_PD("{s}CAN Send ID{m}%u{e}", UvrCanSettings.send_id);
         for (uint32_t i = 0; i < sizeof(kUvrCanBitrates) / sizeof(kUvrCanBitrates[0]); i++) {
           if (UvrCanSettings.bitrate == kUvrCanBitrates[i]) {
-            WSContentSend_PD("{s}CAN Bitrate (konfiguriert){m}%u kbit/s{e}", (uint32_t)kUvrCanBitrateKbps[i]);
+            WSContentSend_PD("{s}CAN Bitrate{m}%u kbit/s{e}", (uint32_t)kUvrCanBitrateKbps[i]);
             break;
           }
         }
@@ -959,19 +966,19 @@ void UVRCan_Dataset_3_Send (struct can_frame *canMsg, uint8_t message_nr) {
             // Val2: total pv power [W]
             // Val3: total consumption power [W]
             // Val4: total battery power [W]
-            intval = (int) (UvrCanDummySdmGetData(10));
+            intval = (int) (Sdm630MultiGetData(10));
             canMsg->data[0] = (uint8_t) (intval & 0xFF);
             canMsg->data[1] = (uint8_t) (intval >> 8 & 0xFF);
 
-            intval = (int) (UvrCanDummySdmGetData(11));
+            intval = (int) (Sdm630MultiGetData(11));
             canMsg->data[2] = (uint8_t) (intval & 0xFF);
             canMsg->data[3] = (uint8_t) (intval >> 8 & 0xFF);
 
-            intval = (int) (UvrCanDummySdmGetData(12));
+            intval = (int) (Sdm630MultiGetData(12));
             canMsg->data[4] = (uint8_t) (intval & 0xFF);
             canMsg->data[5] = (uint8_t) (intval >> 8 & 0xFF);
 
-            intval = (int) (UvrCanDummySdmGetData(13));
+            intval = (int) (Sdm630MultiGetData(13));
             canMsg->data[6] = (uint8_t) (intval & 0xFF);
             canMsg->data[7] = (uint8_t) (intval >> 8 & 0xFF);
             break;
@@ -981,7 +988,7 @@ void UVRCan_Dataset_3_Send (struct can_frame *canMsg, uint8_t message_nr) {
             // Val2: none
             // Val3: none
             // Val4: none
-            intval = (int) (UvrCanDummySdmGetData(8));
+            intval = (int) (Sdm630MultiGetData(8));
             canMsg->data[0] = (uint8_t) (intval & 0xFF);
             canMsg->data[1] = (uint8_t) (intval >> 8 & 0xFF);
 
@@ -1031,7 +1038,7 @@ void UVRCan_Dataset_3_Send (struct can_frame *canMsg, uint8_t message_nr) {
 void UVRCan_Dataset_1_Recv (struct can_frame *canMsg, uint32_t message_id) {
   unsigned int intval = 0;
 
-  AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 1 - Recv Id %03X"), (uint16_t) canFrame[Mcp2515.framecnt-1].can_id);
+  AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Recv Dataset 1 - Recv Id %03X"), (uint16_t) canFrame[Mcp2515.framecnt-1].can_id);
 
   switch (message_id) {
     case CAN_RECV_ID_DIGITAL_1:
@@ -1103,7 +1110,7 @@ void UVRCan_Dataset_3_Recv (struct can_frame *canMsg, uint32_t message_id) {
   uint16_t intval  = 0;
   int16_t  sintval = 0;
 
-  AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 3 - Recv Id %03X"), (uint16_t) canFrame[Mcp2515.framecnt-1].can_id);
+  AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Recv Dataset 3 - Recv Id %03X"), (uint16_t) canFrame[Mcp2515.framecnt-1].can_id);
   //AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 3"));
   //AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: message_id: %u"), (message_id));
   //AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: message_id entry: %u"), (message_id & ~0x1C0));
@@ -1131,7 +1138,7 @@ void UVRCan_Dataset_3_Recv (struct can_frame *canMsg, uint32_t message_id) {
           intval = ((unsigned int) canMsg->data[1] << 8) + (unsigned int) canMsg->data[0];
           if (intval > 1) intval = 1;
           else if (intval < 0) intval = 0;
-          UvrCanDummySolisSetMode((bool) intval);          
+          SolisMeterSetMode((bool) intval);          
           if (intval = 0) AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Battery Power Mode: %s"), "auto");
           else AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Battery Power Mode: %s"), "manual");
 
@@ -1140,7 +1147,7 @@ void UVRCan_Dataset_3_Recv (struct can_frame *canMsg, uint32_t message_id) {
           sintval = (int16_t) ((canMsg->data[3] << 8) | canMsg->data[2]);
           if (sintval > 10000) sintval = 10000;
           else if (sintval < -10000) sintval = -10000;
-          UvrCanDummySolisSetPower((int) sintval);          
+          SolisMeterSetMode((int) sintval);          
           AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Battery Power Setpoint  W: %d"), sintval);
           
           break;
@@ -1161,11 +1168,11 @@ void UVRCan_Dataset_3_Recv (struct can_frame *canMsg, uint32_t message_id) {
                         else if (intval < 0) intval = 0; 
 
                         if (intval == 0) {
-                          UvrCanDummySolisSetMode(false);
+                          SolisMeterSetMode(false);
                           AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Battery Power Mode: %s"), "auto");
                         }
                         else {
-                          UvrCanDummySolisSetMode(true);
+                          SolisMeterSetMode(true);
                           AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Battery Power Mode: %s"), "manual");
                         }
                         break;
@@ -1179,7 +1186,7 @@ void UVRCan_Dataset_3_Recv (struct can_frame *canMsg, uint32_t message_id) {
                         if (sintval > 10000) sintval = 10000;
                         else if (sintval < -10000) sintval = -10000;
 
-                        UvrCanDummySolisSetPower(sintval);          
+                        SolisMeterSetPower(sintval);          
                         AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Battery Power Setpoint  W: %d"), sintval);
                         break;
 

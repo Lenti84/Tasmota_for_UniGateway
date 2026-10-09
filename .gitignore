@@ -26,7 +26,6 @@ data
 unpacked_fs
 unpacked_boards
 tasmota/user/*
-tasmota/user_config_override.h
 tasmota/tasmota_defines_for_berry.h
 tasmota/tasmota_defines_for_berry.be
 tasmota/include/local_ca_data.h

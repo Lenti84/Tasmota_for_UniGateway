@@ -117,6 +117,8 @@ void Sdm630MultiEvery100ms(void)
     if (data_ready) {
       uint8_t buffer[20];  // At least 5 + (2 * 2) = 9
 
+      AddLog(LOG_LEVEL_DEBUG, PSTR("SDM630Multi: data ready"));
+
       uint32_t error = Sdm630MultiModbus->ReceiveBuffer(buffer, 6);
      // uint32_t rcvlen = Sdm630MultiModbus->ReceiveCount();
       AddLogBuffer(LOG_LEVEL_DEBUG_MORE, buffer, Sdm630MultiModbus->ReceiveCount());
@@ -158,8 +160,10 @@ void Sdm630MultiEvery100ms(void)
         // }
       }
     } // end data ready
+    else AddLog(LOG_LEVEL_DEBUG, PSTR("SDM630Multi: no data ready"));
 
     if (0 == Sdm630_Multi.send_retry || data_ready) {
+      AddLog(LOG_LEVEL_DEBUG, PSTR("SDM630Multi: send request"));
       Sdm630_Multi.send_retry = 5;
       //Sdm630MultiModbus->Send((uint8_t) (sdm630_multi_register[Sdm630_Multi.read_state][1]), 0x04, (uint16_t) (sdm630_multi_register[Sdm630_Multi.read_state][0]), 2);
       Sdm630MultiModbus->Send((uint8_t) (Sdm630_Multi.meter[Sdm630_Multi.read_state].address), 0x04, 0x000C, 6);
@@ -226,20 +230,22 @@ void Sdm630MultiShow(bool json) {
     } else {
       WSContentSend_P(PSTR("{s}SDM630 Multi - Meters{m}{e}"));
 
-      WSContentSend_PD("{s}Leistung Netz ges.{m}%.0f W{e}", Sdm630_Multi.total_grid_power);
-      WSContentSend_PD("{s}Leistung PV ges.{m}%.0f W{e}", Sdm630_Multi.total_pv_power);
-      WSContentSend_PD("{s}Leistung Last ges.{m}%.0f W{e}", Sdm630_Multi.total_load_power);
-      WSContentSend_PD("{s}Leistung Batterie{m}%.0f W{e}", Sdm630_Multi.total_battery_power);
+      WSContentSend_PD(PSTR("{s}Leistung Netz ges.{m}%0_f W{e}"), &Sdm630_Multi.total_grid_power);
+      WSContentSend_PD(PSTR("{s}Leistung PV ges.{m}%0_f W{e}"), &Sdm630_Multi.total_pv_power);
+      WSContentSend_PD(PSTR("{s}Leistung Last ges.{m}%0_f W{e}"), &Sdm630_Multi.total_load_power);
+      WSContentSend_PD(PSTR("{s}Leistung Batterie{m}%0_f W{e}"), &Sdm630_Multi.total_battery_power);
 
-      WSContentSend_PD("{s}Meter 1 - Phase 1 - Grid{m}%.0f W{e}", Sdm630_Multi.meter[0].power_phase1);
-      WSContentSend_PD("{s}Meter 1 - Phase 2 - Grid{m}%.0f W{e}", Sdm630_Multi.meter[0].power_phase2);
-      WSContentSend_PD("{s}Meter 1 - Phase 3 - Grid{m}%.0f W{e}", Sdm630_Multi.meter[0].power_phase3);
-      WSContentSend_PD("{s}Meter 2 - Phase 1 - PV 1{m}%.0f W{e}", Sdm630_Multi.meter[1].power_phase1);
-      WSContentSend_PD("{s}Meter 2 - Phase 2 - PV 1{m}%.0f W{e}", Sdm630_Multi.meter[1].power_phase2);
-      WSContentSend_PD("{s}Meter 2 - Phase 3 - PV 1{m}%.0f W{e}", Sdm630_Multi.meter[1].power_phase3);
-      WSContentSend_PD("{s}Meter 3 - Phase 1 - Battery{m}%.0f W{e}", Sdm630_Multi.meter[2].power_phase1);
-      WSContentSend_PD("{s}Meter 3 - Phase 2 - PV 3{m}%.0f W{e}", Sdm630_Multi.meter[2].power_phase2);
-      WSContentSend_PD("{s}Meter 3 - Phase 3 - PV 2{m}%.0f W{e}", Sdm630_Multi.meter[2].power_phase3);
+      WSContentSend_PD(PSTR("{s}Meter 1 - Phase 1 - Grid{m}%0_f W{e}"), &Sdm630_Multi.meter[0].power_phase1);
+      WSContentSend_PD(PSTR("{s}Meter 1 - Phase 2 - Grid{m}%0_f W{e}"), &Sdm630_Multi.meter[0].power_phase2);
+      WSContentSend_PD(PSTR("{s}Meter 1 - Phase 3 - Grid{m}%0_f W{e}"), &Sdm630_Multi.meter[0].power_phase3);
+      WSContentSend_PD(PSTR("{s}Meter 2 - Phase 1 - PV 1{m}%0_f W{e}"), &Sdm630_Multi.meter[1].power_phase1);
+      WSContentSend_PD(PSTR("{s}Meter 2 - Phase 2 - PV 1{m}%0_f W{e}"), &Sdm630_Multi.meter[1].power_phase2);
+      WSContentSend_PD(PSTR("{s}Meter 2 - Phase 3 - PV 1{m}%0_f W{e}"), &Sdm630_Multi.meter[1].power_phase3);
+      WSContentSend_PD(PSTR("{s}Meter 3 - Phase 1 - Battery{m}%0_f W{e}"), &Sdm630_Multi.meter[2].power_phase1);
+      WSContentSend_PD(PSTR("{s}Meter 3 - Phase 2 - PV 3{m}%0_f W{e}"), &Sdm630_Multi.meter[2].power_phase2);
+      WSContentSend_PD(PSTR("{s}Meter 3 - Phase 3 - PV 2{m}%0_f W{e}"), &Sdm630_Multi.meter[2].power_phase3);
+
+      //AddLog(LOG_LEVEL_DEBUG, PSTR("SDM630Multi: web - %f"), Sdm630_Multi.total_grid_power);
 
       WSContentSend_P(PSTR("{s} {m} {e}"));      
 #endif  // USE_WEBSERVER
@@ -256,7 +262,7 @@ bool Xsns122(uint32_t function)
   bool result = false;
 
   switch (function) {
-    case FUNC_EVERY_100_MSECOND:
+    case FUNC_EVERY_100_MSECOND:    
       Sdm630MultiEvery100ms();
       break;
     case FUNC_JSON_APPEND:
