@@ -162,11 +162,16 @@ void Sdm72Sdm230Show(bool json) {
       //ResponseAppend_P(PSTR(",\"" D_JSON_IMPORT_POWER "\":%s"), EnergyFmt(&Sdm72Sdm230.import_power, Settings->flag2.wattage_resolution));
 #ifdef USE_WEBSERVER
     } else {
+      char numberstr[33];
       WSContentSend_P(PSTR("{s}SDM72 SDM230 Meters{m}{e}"));
-      WSContentSend_PD("{s}SDM72 Leistung{m}%.0f W{e}", Sdm72Sdm230.total_active_SDM72);
-      WSContentSend_PD("{s}SDM72 Verbrauch{m}%.3f kWh{e}", Sdm72Sdm230.import_power_SDM72);
-      WSContentSend_PD("{s}SDM230 Leistung{m}%.0f W{e}", Sdm72Sdm230.total_active_SDM230);
-      WSContentSend_PD("{s}SDM230 Verbrauch{m}%.3f kWh{e}", Sdm72Sdm230.import_power_SDM230);
+      dtostrfd(Sdm72Sdm230.total_active_SDM72, 0, numberstr);
+      WSContentSend_PD("{s}SDM72 Leistung{m}%s W{e}", numberstr);
+      dtostrfd(Sdm72Sdm230.import_power_SDM72, 3, numberstr);
+      WSContentSend_PD("{s}SDM72 Verbrauch{m}%s kWh{e}", numberstr);
+      dtostrfd(Sdm72Sdm230.total_active_SDM230, 0, numberstr);
+      WSContentSend_PD("{s}SDM230 Leistung{m}%s W{e}", numberstr);
+      dtostrfd(Sdm72Sdm230.import_power_SDM230, 3, numberstr);
+      WSContentSend_PD("{s}SDM230 Verbrauch{m}%s kWh{e}", numberstr);
       WSContentSend_P(PSTR("{s} {m} {e}"));      
 #endif  // USE_WEBSERVER
     }
