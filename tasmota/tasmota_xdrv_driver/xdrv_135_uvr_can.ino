@@ -335,12 +335,17 @@ void UVRCAN_SetFilter(uint8_t RecvId) {
 
 
 void UVRCAN_Init(void) {
+  //if (nullptr == SpiBegin(1)) { return; }
+
   if (PinUsed(GPIO_MCP2515_CS, GPIO_ANY) && PinUsed(GPIO_MCP2515_INT, GPIO_ANY) && TasmotaGlobal.spi_enabled) {
     AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Init"));
     
     // MCP2515 uses the global SPI instance; initialize it with Tasmota's bus 1 pins.
     // we have to use HSPI
-    if (nullptr == SpiBegin(1)) { return; }
+    //if (nullptr == SpiBegin(1)) { return; }
+    SPI._spi_num = HSPI;        // hack in SPI.h: class SPIClass --> int8_t _spi_num must be public to be set to HSPI
+                                 // hack in SPI.h: class SPIClass --> uint8_t pinSet must be public to be set to HSPI
+
 
     SPI.setFrequency(1000000);
 
