@@ -247,6 +247,7 @@ enum UserSelectablePins {
   GPIO_DCOM_MB_LT_TX, GPIO_DCOM_MB_LT_RX, GPIO_DCOM_MB_LT_ENA, // Daikin DCOM LT MB
   GPIO_SDM630_MULTI_TX, GPIO_SDM630_MULTI_RX, // SDM630 multi Modbus interface
   GPIO_SOLIS_METER_TX, GPIO_SOLIS_METER_RX, GPIO_SOLIS_METER_ENA, // Solis meter bridge
+  GPIO_DTSU666H_TX, GPIO_DTSU666H_RX, // Chint DTSU666-H Modbus interface
   GPIO_SENSOR_END };
 
 // Error as warning to rethink GPIO usage with max 2045
@@ -535,6 +536,7 @@ const char kSensorNames[] PROGMEM =
   "DCOM LT Tx|DCOM LT Rx|DCOM LT ENA|"
   "SDM630 Multi Tx|SDM630 Multi Rx|"
   "Solis Meter Tx|Solis Meter Rx|Solis Meter ENA|"
+  "DTSU666-H Tx|DTSU666-H Rx|"
 ;
 
 const char kSensorNamesFixed[] PROGMEM =
@@ -989,6 +991,10 @@ const uint16_t kGpioNiceList[] PROGMEM = {
 #ifdef USE_SDM630
   AGPIO(GPIO_SDM630_TX),                         // SDM630 Serial interface
   AGPIO(GPIO_SDM630_RX),                         // SDM630 Serial interface
+#endif
+#ifdef USE_DTSU666_H
+  AGPIO(GPIO_DTSU666H_TX),                       // Chint DTSU666-H Modbus interface
+  AGPIO(GPIO_DTSU666H_RX),
 #endif
 #ifdef USE_SDM630_MULTI
   AGPIO(GPIO_SDM630_MULTI_TX),                   // SDM630 multi Modbus interface

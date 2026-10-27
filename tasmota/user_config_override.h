@@ -96,6 +96,7 @@ Examples :
 #define USE_SDM630_MULTI
 #define USE_SOLIS_METER
 #define USE_SDM72_SDM230
+#define USE_DTSU666_H
 #define USE_DCOM_LT_MB
 
 

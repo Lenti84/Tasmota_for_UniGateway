@@ -992,6 +992,9 @@
 //#define USE_SDM230                               // Add support for Eastron SDM230-Modbus energy monitor (+1k6 code)
   #define SDM230_SPEED         9600              // SDM230-Modbus RS485 serial speed (default: 9600 baud)
 //  #define SDM230_MORE_REGS                        // read more registers (see xnrg_21_sdm230.ino, may cause timing issues (at your own risk, +0k4 code))
+//#define USE_DTSU666_H                            // Chint DTSU666-H (assign DTSU666-H Tx/Rx and NRG Modbus Tx enable)
+  #define DTSU666H_SPEED      4800                // Modbus baud rate
+  #define DTSU666H_ADDR       11                  // Modbus slave address
 //#define USE_SDM630_MULTI                         // Three SDM630 meters (19200 baud, addresses 2, 3 and 4)
 //#define USE_SDM630                               // Add support for Eastron SDM630-Modbus energy monitor (+0k6 code)
   #define SDM630_SPEED         9600              // SDM630-Modbus RS485 serial speed (default: 9600 baud)

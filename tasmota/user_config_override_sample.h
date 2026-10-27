@@ -94,6 +94,7 @@ Examples :
 // UniGateway Solis bridge (assign Solis Meter Tx/Rx/ENA GPIOs):
 //#define USE_SDM630_MULTI
 //#define USE_SOLIS_METER
+//#define USE_DTSU666_H  // Assign DTSU666-H Tx/Rx and NRG Modbus Tx enable
 //#define SOLIS_METER_SPEED 9600
 
 #endif  // _USER_CONFIG_OVERRIDE_H_
