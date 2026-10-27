@@ -50,6 +50,7 @@ float Sdm630MultiGetData(uint8_t index);
 
 #ifdef USE_DCOM_LT_MB
 #define UvrCanDcom DcomMbLt
+#define UvrCanDcomTarget DcomMbLtTarget
 #else
 // Temporary internal adapters for compile testing without the UniGateway
 // DCOM driver. Measurements are zero; setters only update RAM.
@@ -248,7 +249,7 @@ void (* const UvrCanCommand[])(void) PROGMEM = { &CmndUvrCanDataset, &CmndUvrCan
 struct UVRCAN_Struct {
   uint32_t lastFrameRecv = 0;
   int8_t   init_status = 0;
-  unsigned char flagRecv = 0;
+  volatile char flagRecv = 0;
   uint8_t  errors = 0; 
   uint8_t framecnt = 0;
 } Mcp2515;
@@ -445,7 +446,8 @@ void UVRCAN_Write() {
 
 
 void UVRCAN_Read() {
-    
+    Mcp2515.flagRecv = 0;
+
     while (Mcp2515.framecnt > 0) {        
       AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Frame Read"));
         
@@ -453,6 +455,7 @@ void UVRCAN_Read() {
         //AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 1"));        
         if(canFrame[Mcp2515.framecnt-1].can_id == (UvrCanSettings.recv_id | CAN_RECV_ID_DIGITAL_1)) UVRCan_Dataset_1_Recv(&canFrame[Mcp2515.framecnt-1], CAN_RECV_ID_DIGITAL_1);
         else if(canFrame[Mcp2515.framecnt-1].can_id == (UvrCanSettings.recv_id | CAN_RECV_ID_ANALOG_4)) UVRCan_Dataset_1_Recv(&canFrame[Mcp2515.framecnt-1], CAN_RECV_ID_ANALOG_4);
+        else if(canFrame[Mcp2515.framecnt-1].can_id == (UvrCanSettings.recv_id | CAN_RECV_ID_ANALOG_NEW)) UVRCan_Dataset_1_Recv(&canFrame[Mcp2515.framecnt-1], CAN_RECV_ID_ANALOG_NEW); 
         else AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Recv Dataset 1 - unknown Recv Id %03X"), (uint16_t) canFrame[Mcp2515.framecnt-1].can_id);
       }
       else if(UvrCanSettings.dataset == 2) {
@@ -470,7 +473,7 @@ void UVRCAN_Read() {
 
       Mcp2515.framecnt--;
     }
-    Mcp2515.flagRecv = 0;
+    // Mcp2515.flagRecv = 0;
   
 
 }
@@ -695,14 +698,14 @@ bool Xdrv135(uint32_t function) {
   else if (Mcp2515.init_status) {
     switch (function) {
       case FUNC_EVERY_50_MSECOND:
-        if(Mcp2515.flagRecv) UVRCAN_Read();
+        if(Mcp2515.flagRecv || !GetPin(GPIO_MCP2515_INT)) UVRCAN_Read();      // check recv buffer on edge AND on low-level of INT oin
         break;
       case FUNC_COMMAND:
         result = DecodeCommand(kUvrCanCommands, UvrCanCommand);
         break;
       case FUNC_EVERY_SECOND:
         UVRCAN_Write();
-        Mcp2515.flagRecv = 1;       // read CAN messages stored without INT generation by MCP2515
+        //Mcp2515.flagRecv = 1;       // read CAN messages stored without INT generation by MCP2515
         break;
 
       case FUNC_JSON_APPEND:
@@ -880,6 +883,7 @@ void UVRCan_Dataset_2_Send (struct can_frame *canMsg, uint8_t message_nr) {
             intval = (int) (Energy->active_power[0] + Energy->active_power[1] + Energy->active_power[2]);
             canMsg->data[0] = (uint8_t) (intval & 0xFF);
             canMsg->data[1] = (uint8_t) (intval >> 8 & 0xFF);
+            AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Power total: %d"), intval);
 
             intval = (int) Energy->active_power[0];
             canMsg->data[2] = (uint8_t) (intval & 0xFF);
@@ -1066,28 +1070,28 @@ void UVRCan_Dataset_1_Recv (struct can_frame *canMsg, uint32_t message_id) {
           if (canMsg->data[1] & 0x01) intval = 1;
           else if (canMsg->data[1] & 0x02) intval = 2;
           else intval = 0;
-          UvrCanDcom.target_opmode = (uint16_t) intval;
+          UvrCanDcomTarget.opmode = (uint16_t) intval;
           //Serial.print("Operation Mode: "); Serial.println(intval, DEC);
           AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Operation Mode: %d"), intval);
 
           // Space Heating/Cooling On/Off
           if (canMsg->data[1] & 0x04) intval = 1;
           else intval = 0;
-          UvrCanDcom.target_spaceheatcool = (uint16_t) intval;
+          UvrCanDcomTarget.spaceheatcool = (uint16_t) intval;
           //Serial.print("Space Heating/Cooling: "); Serial.println(intval, DEC);
           AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Space Heating/Cooling: %d"), intval);
 
           // Quiet Mode Operation
           if (canMsg->data[1] & 0x08) intval = 1;
           else intval = 0;
-          UvrCanDcom.target_quietmode = (uint16_t) intval;
+          UvrCanDcomTarget.quietmode = (uint16_t) intval;
           //Serial.print("Quiet Mode Operation: "); Serial.println(intval, DEC);
           AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Quiet Mode Operation: %d"), intval);
 
           // DHW Booster Mode On/Off
           if (canMsg->data[1] & 0x10) intval = 1;
           else intval = 0;
-          UvrCanDcom.target_dhwbooster = (uint16_t) intval;
+          UvrCanDcomTarget.dhwbooster = (uint16_t) intval;
           //Serial.print("DHW Booster Mode On/Off: "); Serial.println(intval, DEC);
           AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: DHW Booster Mode On/Off: %d"), intval);
 
@@ -1101,10 +1105,37 @@ void UVRCan_Dataset_1_Recv (struct can_frame *canMsg, uint32_t message_id) {
           intval = ((unsigned int) canMsg->data[1] << 8) + (unsigned int) canMsg->data[0];
           if (intval > 550) intval = 550;
           else if (intval < 250) intval = 250;
-          UvrCanDcom.target_leavingwaterheattemp = (uint16_t) intval;
-          //Serial.print("Leaving Water Main Heating Setpoint 0.1°C: "); Serial.println(UvrCanDcom.target_leavingwaterheattemp, DEC);
-          AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Leaving Water Main Heating Setpoint 0.1°C: %d"), UvrCanDcom.target_leavingwaterheattemp);
+          UvrCanDcomTarget.leavingwaterheattemp = (uint16_t) intval;
+          //Serial.print("Leaving Water Main Heating Setpoint 0.1°C: "); Serial.println(UvrCanDcomTarget.leavingwaterheattemp, DEC);
+          AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Leaving Water Main Heating Setpoint 0.1°C: %d"), UvrCanDcomTarget.leavingwaterheattemp);
           
+          break;
+
+
+    case CAN_RECV_ID_ANALOG_NEW:    // CAN Analog Out 1 ... x - neues Format
+          AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Recv Dataset 1 - Analog New"));
+          AddLog(LOG_LEVEL_INFO, PSTR("UVRCAN: Analog New ID %d"), (unsigned int) canMsg->data[1]);
+
+          //AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: 3 New Data: %u"), (canMsg->data[1]));
+
+          switch ((unsigned int) canMsg->data[1]) {
+            
+            // CAN Analog Out 13
+            // Leaving Water Main Heating Setpoint
+            case 0x12:  intval = ((uint16_t) canMsg->data[5] << 8) + (uint16_t) canMsg->data[4];                    
+                  
+                        if (intval > 550) intval = 550;
+                        else if (intval < 250) intval = 250;
+                        UvrCanDcomTarget.leavingwaterheattemp = (uint16_t) intval;
+                        
+                        AddLog(LOG_LEVEL_DEBUG, PSTR("UVRCAN: Leaving Water Main Heating Setpoint 0.1°C: %d"), UvrCanDcomTarget.leavingwaterheattemp);
+                        
+                        break;
+
+           
+
+          }
+
           break;
 
     default: break;
